@@ -1,13 +1,15 @@
 import type { Provider, ModelInfo } from './types.ts';
 
-// opencode.ai — OpenAI-compatible endpoint
+// opencode.ai Go endpoint — OpenAI-compatible
+const BASE = 'https://opencode.ai/zen/go/v1';
+
 export const opencodeProvider: Provider = {
   name: 'opencode',
-  baseUrl: 'https://api.opencode.ai/v1',
+  baseUrl: BASE,
   apiKeyEnv: 'OPENCODE_API_KEY',
   async listModels(apiKey?: string): Promise<ModelInfo[]> {
     if (!apiKey) throw new Error('OPENCODE_API_KEY required');
-    const res = await fetch('https://api.opencode.ai/v1/models', {
+    const res = await fetch(`${BASE}/models`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
     if (!res.ok) throw new Error(`opencode.ai API error: ${res.status}`);
