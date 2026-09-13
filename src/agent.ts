@@ -25,9 +25,10 @@ export async function runAgent(
   opts: AgentOptions,
 ): Promise<ChatCompletionMessageParam[]> {
   const extraHeaders: Record<string, string> = { ...opts.config.defaultHeaders };
-  // opencode Go endpoint requires a session ID per agent run
-  if (opts.config.baseUrl.includes('opencode.ai') && !extraHeaders['x-opencode-session']) {
-    extraHeaders['x-opencode-session'] = crypto.randomUUID();
+  // opencode Go endpoint requires a session ID and custom user-agent per agent run
+  if (opts.config.baseUrl.includes('opencode.ai')) {
+    if (!extraHeaders['x-opencode-session']) extraHeaders['x-opencode-session'] = crypto.randomUUID();
+    if (!extraHeaders['User-Agent']) extraHeaders['User-Agent'] = 'picante/1.0';
   }
 
   const client = new OpenAI({
