@@ -24,7 +24,11 @@ export async function runAgent(
   messages: ChatCompletionMessageParam[],
   opts: AgentOptions,
 ): Promise<ChatCompletionMessageParam[]> {
-  const client = new OpenAI({ baseURL: opts.config.baseUrl, apiKey: opts.config.apiKey });
+  const client = new OpenAI({
+    baseURL: opts.config.baseUrl,
+    apiKey: opts.config.apiKey,
+    defaultHeaders: opts.config.defaultHeaders,
+  });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const toolMap = new Map(opts.tools.map(t => [(t.definition as any).function.name as string, t]));
   const history = [...messages];
