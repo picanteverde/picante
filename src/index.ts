@@ -4,7 +4,8 @@ import type { ChatCompletionMessageParam } from 'openai/resources/chat/completio
 import { loadConfig } from './config.ts';
 import { loadSkills } from './skills.ts';
 import { runAgent } from './agent.ts';
-import { readFileTool, writeFileTool, runShellTool, runMonitorTool } from './tools/index.ts';
+import { readFileTool, writeFileTool, runShellTool, runMonitorTool, listModelsTool } from './tools/index.ts';
+import { PROVIDERS } from './providers/index.ts';
 import { webSearchTool } from './plugins/web-search.ts';
 import { webBrowseTool } from './plugins/web-browse.ts';
 import { webBrowseHeadlessTool } from './plugins/web-browse-headless.ts';
@@ -21,6 +22,7 @@ const ALL_TOOLS = [
   writeFileTool,
   runShellTool,
   runMonitorTool,
+  listModelsTool,
   webSearchTool,
   webBrowseTool,
   webBrowseHeadlessTool,
@@ -64,6 +66,38 @@ async function repl(session: Session): Promise<void> {
 
 // --- CLI entry ---
 const args = process.argv.slice(2);
+
+// picante providers [list|<name>] [--filter <str>]
+if (args[0] === 'providers') {
+  const sub = args[1];
+  if (!sub || sub === 'list') {
+    for (const [name, p] of Object.entries(PROVIDERS)) {
+      console.log(`${name.padEnd(12)} ${p.baseUrl}  (key: ${p.apiKeyEnv})`);
+    }
+  } else {
+    const p = PROVIDERS[sub];
+    if (!p) { console.error(`Unknown provider: ${sub}`); process.exit(1); }
+    const filterIdx = args.indexOf('--filter');
+    const filter = filterIdx !== -1 ? args[filterIdx + 1] : undefined;
+    const key = process.env[p.apiKeyEnv];
+    try {
+      const models = await p.listModels(key);
+      const filtered = filter ? models.filter(m => m.id.includes(filter) || m.name?.includes(filter)) : models;
+      for (const m of filtered) {
+        const parts = [m.id];
+        if (m.name && m.name !== m.id) parts.push(`(${m.name})`);
+        if (m.contextLength) parts.push(`ctx:${m.contextLength}`);
+        if (m.pricing?.prompt != null) parts.push(`$${m.pricing.prompt}/${m.pricing.completion} ${m.pricing.currency ?? ''}`);
+        console.log(parts.join('  '));
+      }
+      console.log(`\n${filtered.length} model(s)`);
+    } catch (e) {
+      console.error((e as Error).message); process.exit(1);
+    }
+  }
+  process.exit(0);
+}
+
 const resumeFlag = args.indexOf('--resume');
 const sessionsFlag = args.indexOf('--sessions');
 
