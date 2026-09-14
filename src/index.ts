@@ -225,16 +225,33 @@ function printEvent(event: Parameters<typeof runAgent>[1]['onStep'] extends ((e:
   }
 }
 
+function formatApiError(e: unknown): string {
+  const err = e as { status?: number; message?: string };
+  if (err.status === 401) return `\x1b[31mAuthentication failed (401).\x1b[0m Check your API key:\n  picante config provider <name> <key>\n  picante config show`;
+  if (err.status === 400) return `\x1b[31mBad request (400):\x1b[0m ${err.message ?? ''}\nCheck your model name:\n  picante config model`;
+  if (err.status === 429) return `\x1b[31mRate limited (429).\x1b[0m Try again in a moment.`;
+  if (err.status === 404) return `\x1b[31mModel not found (404).\x1b[0m Pick a valid model:\n  picante config model`;
+  return `\x1b[31mAPI error:\x1b[0m ${err.message ?? String(e)}`;
+}
+
 async function runPrompt(prompt: string, session: Session): Promise<void> {
   session.messages.push({ role: 'user', content: prompt });
-  const updated = await runAgent(session.messages, {
-    config,
-    tools: ALL_TOOLS,
-    systemPrompt: SYSTEM_PROMPT,
-    onStep: printEvent,
-  });
-  session.messages = updated;
-  saveSession(config.sessionDir, session);
+  try {
+    const updated = await runAgent(session.messages, {
+      config,
+      tools: ALL_TOOLS,
+      systemPrompt: SYSTEM_PROMPT,
+      onStep: printEvent,
+    });
+    session.messages = updated;
+    saveSession(config.sessionDir, session);
+  } catch (e) {
+    const err = e as { status?: number };
+    process.stderr.write('\n' + formatApiError(e) + '\n');
+    // Remove the user message we pushed so the session isn't corrupted
+    session.messages.pop();
+    if (!err.status) throw e; // re-throw non-API errors (bugs)
+  }
 }
 
 async function repl(session: Session): Promise<void> {
@@ -276,7 +293,10 @@ const promptArg = args.filter((_, i) =>
 ).join(' ').trim();
 
 if (promptArg) {
-  await runPrompt(promptArg, session);
+  await runPrompt(promptArg, session).catch(e => {
+    process.stderr.write(formatApiError(e) + '\n');
+    process.exit(1);
+  });
 } else {
   await repl(session);
 }
