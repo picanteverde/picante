@@ -12,6 +12,63 @@ import { webBrowseHeadlessTool } from './plugins/web-browse-headless.ts';
 import { webDownloadTool } from './plugins/web-download.ts';
 import { newSessionId, saveSession, loadSession, listSessions, type Session } from './session.ts';
 
+// --- CLI entry ---
+const args = process.argv.slice(2);
+
+// --help / -h — runs before loading config so it works without any setup
+if (args[0] === '--help' || args[0] === '-h' || args.length === 0 && process.stdin.isTTY === false) {
+  console.log(`\x1b[1mpicante\x1b[0m — terminal AI agent
+
+\x1b[1mUsage:\x1b[0m
+  picante [prompt]            Single-shot prompt
+  picante                     Interactive REPL
+  picante --resume [id]       Resume last (or named) session
+  picante --sessions          List saved sessions
+  picante providers [name]    List provider models
+  picante --help              Show this help
+
+\x1b[1mConfiguration\x1b[0m (~/.picante/config.toml or .picante.toml):
+  LLM_BASE_URL = "https://openrouter.ai/api/v1"
+  LLM_MODEL    = "google/gemini-flash-1.5"
+  LLM_API_KEY  = "sk-..."
+
+\x1b[1mProviders:\x1b[0m  openrouter · opencode · fal · nvidia · amd
+\x1b[1mDocs:\x1b[0m       https://picanteverde.github.io/picante`);
+  process.exit(0);
+}
+
+// picante providers [list|<name>] [--filter <str>]
+if (args[0] === 'providers') {
+  const sub = args[1];
+  if (!sub || sub === 'list') {
+    for (const [name, p] of Object.entries(PROVIDERS)) {
+      console.log(`${name.padEnd(12)} ${p.baseUrl}  (key: ${p.apiKeyEnv})`);
+    }
+  } else {
+    const p = PROVIDERS[sub];
+    if (!p) { console.error(`Unknown provider: ${sub}`); process.exit(1); }
+    const filterIdx = args.indexOf('--filter');
+    const filter = filterIdx !== -1 ? args[filterIdx + 1] : undefined;
+    const key = process.env[p.apiKeyEnv];
+    try {
+      const models = await p.listModels(key);
+      const filtered = filter ? models.filter(m => m.id.includes(filter) || m.name?.includes(filter)) : models;
+      for (const m of filtered) {
+        const parts = [m.id];
+        if (m.name && m.name !== m.id) parts.push(`(${m.name})`);
+        if (m.contextLength) parts.push(`ctx:${m.contextLength}`);
+        if (m.pricing?.prompt != null) parts.push(`$${m.pricing.prompt}/${m.pricing.completion} ${m.pricing.currency ?? ''}`);
+        console.log(parts.join('  '));
+      }
+      console.log(`\n${filtered.length} model(s)`);
+    } catch (e) {
+      console.error((e as Error).message); process.exit(1);
+    }
+  }
+  process.exit(0);
+}
+
+// Load config only when actually running the agent
 const config = loadConfig();
 const skills = loadSkills(config.skillDirs);
 
@@ -62,40 +119,6 @@ async function repl(session: Session): Promise<void> {
     await runPrompt(prompt, session);
     process.stdout.write('\n');
   }
-}
-
-// --- CLI entry ---
-const args = process.argv.slice(2);
-
-// picante providers [list|<name>] [--filter <str>]
-if (args[0] === 'providers') {
-  const sub = args[1];
-  if (!sub || sub === 'list') {
-    for (const [name, p] of Object.entries(PROVIDERS)) {
-      console.log(`${name.padEnd(12)} ${p.baseUrl}  (key: ${p.apiKeyEnv})`);
-    }
-  } else {
-    const p = PROVIDERS[sub];
-    if (!p) { console.error(`Unknown provider: ${sub}`); process.exit(1); }
-    const filterIdx = args.indexOf('--filter');
-    const filter = filterIdx !== -1 ? args[filterIdx + 1] : undefined;
-    const key = process.env[p.apiKeyEnv];
-    try {
-      const models = await p.listModels(key);
-      const filtered = filter ? models.filter(m => m.id.includes(filter) || m.name?.includes(filter)) : models;
-      for (const m of filtered) {
-        const parts = [m.id];
-        if (m.name && m.name !== m.id) parts.push(`(${m.name})`);
-        if (m.contextLength) parts.push(`ctx:${m.contextLength}`);
-        if (m.pricing?.prompt != null) parts.push(`$${m.pricing.prompt}/${m.pricing.completion} ${m.pricing.currency ?? ''}`);
-        console.log(parts.join('  '));
-      }
-      console.log(`\n${filtered.length} model(s)`);
-    } catch (e) {
-      console.error((e as Error).message); process.exit(1);
-    }
-  }
-  process.exit(0);
 }
 
 const resumeFlag = args.indexOf('--resume');
