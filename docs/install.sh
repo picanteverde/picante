@@ -41,15 +41,12 @@ trap 'rm -f "$TMP"' EXIT
 curl -fsSL --progress-bar "$URL" -o "$TMP"
 chmod +x "$TMP"
 
-# Remove previous version
-if [ -f "$INSTALL_DIR/$BIN" ]; then
-  rm -f "$INSTALL_DIR/$BIN"
-fi
-
-# Install — may need sudo
+# Install (use sudo if directory is not writable)
 if [ -w "$INSTALL_DIR" ]; then
+  rm -f "$INSTALL_DIR/$BIN"
   mv "$TMP" "$INSTALL_DIR/$BIN"
 else
+  sudo rm -f "$INSTALL_DIR/$BIN"
   sudo mv "$TMP" "$INSTALL_DIR/$BIN"
 fi
 
