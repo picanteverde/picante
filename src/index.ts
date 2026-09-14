@@ -11,13 +11,20 @@ import { webBrowseTool } from './plugins/web-browse.ts';
 import { webBrowseHeadlessTool } from './plugins/web-browse-headless.ts';
 import { webDownloadTool } from './plugins/web-download.ts';
 import { newSessionId, saveSession, loadSession, listSessions, type Session } from './session.ts';
+import { version } from '../package.json';
 
 // --- CLI entry ---
 const args = process.argv.slice(2);
 
+// --version / -v
+if (args[0] === '--version' || args[0] === '-v') {
+  console.log(`picante v${version}`);
+  process.exit(0);
+}
+
 // --help / -h — runs before loading config so it works without any setup
 if (args[0] === '--help' || args[0] === '-h' || args.length === 0 && process.stdin.isTTY === false) {
-  console.log(`\x1b[1mpicante\x1b[0m — terminal AI agent
+  console.log(`\x1b[1mpicante\x1b[0m v${version} — terminal AI agent
 
 \x1b[1mUsage:\x1b[0m
   picante [prompt]                     Single-shot prompt
@@ -28,6 +35,7 @@ if (args[0] === '--help' || args[0] === '-h' || args.length === 0 && process.std
   picante config show                  Show current configuration
   picante config provider <n> [key]    Set active provider (+ API key)
   picante config model [name]          Interactive model picker or set directly
+  picante --version                    Show version
   picante --help                       Show this help
 
 \x1b[1mConfiguration\x1b[0m (~/.picante/config.toml or .picante.toml):
@@ -231,7 +239,7 @@ async function runPrompt(prompt: string, session: Session): Promise<void> {
 
 async function repl(session: Session): Promise<void> {
   const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: false });
-  process.stdout.write(`\x1b[1mpicante\x1b[0m  session ${session.id}  (Ctrl+D to exit)\n\n`);
+  process.stdout.write(`\x1b[1mpicante\x1b[0m v${version}  session ${session.id}  (Ctrl+D to exit)\n\n`);
   for await (const line of rl) {
     const prompt = line.trim();
     if (!prompt) continue;
