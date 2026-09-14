@@ -3,13 +3,17 @@
   "version": "0.1.0",
   "module": "src/index.ts",
   "type": "module",
-  "private": true,
   "bin": {
     "picante": "./src/index.ts"
   },
   "scripts": {
     "start": "bun src/index.ts",
-    "dev": "bun --watch src/index.ts"
+    "dev": "bun --watch src/index.ts",
+    "build:linux-x64": "bun build --compile --target=bun-linux-x64 src/index.ts --outfile dist/picante-linux-x64",
+    "build:linux-arm64": "bun build --compile --target=bun-linux-arm64 src/index.ts --outfile dist/picante-linux-arm64",
+    "build:darwin-x64": "bun build --compile --target=bun-darwin-x64 src/index.ts --outfile dist/picante-darwin-x64",
+    "build:darwin-arm64": "bun build --compile --target=bun-darwin-arm64 src/index.ts --outfile dist/picante-darwin-arm64",
+    "build": "mkdir -p dist && bun run build:linux-x64 && bun run build:linux-arm64 && bun run build:darwin-x64 && bun run build:darwin-arm64"
   },
   "devDependencies": {
     "@types/bun": "latest",

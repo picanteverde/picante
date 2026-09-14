@@ -1,0 +1,712 @@
+<title>picante — CLI AI agent</title>
+<meta name="description" content="A fast, terminal-native AI agent with web tools, multi-provider support, and a plugin system. Install with one command.">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0e0e0e;
+    --surface:  #171717;
+    --border:   #2b2b2b;
+    --accent:   #e85c2d;
+    --accent-dim: #c04a22;
+    --text:     #f0ece6;
+    --muted:    #7d7570;
+    --code-bg:  #111111;
+    --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Liberation Mono', monospace;
+    --sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* NAV */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(14,14,14,0.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2rem;
+    height: 52px;
+  }
+  .nav-logo {
+    font-family: var(--mono);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+  }
+  .nav-logo .pepper { color: var(--accent); }
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 1.6rem;
+    list-style: none;
+  }
+  .nav-links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: .88rem;
+    transition: color .15s;
+  }
+  .nav-links a:hover { color: var(--text); }
+  .nav-gh {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    border: 1px solid var(--border);
+    padding: .3rem .75rem;
+    border-radius: 6px;
+    color: var(--text) !important;
+    font-size: .82rem !important;
+    transition: border-color .15s, background .15s !important;
+  }
+  .nav-gh:hover { background: var(--surface) !important; border-color: var(--muted) !important; }
+
+  /* HERO */
+  .hero {
+    min-height: calc(100vh - 52px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 5rem 2rem 4rem;
+    text-align: center;
+  }
+  .hero-eyebrow {
+    font-family: var(--mono);
+    font-size: .75rem;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 1.5rem;
+  }
+  .hero-name {
+    font-family: var(--mono);
+    font-size: clamp(3.5rem, 10vw, 7rem);
+    font-weight: 800;
+    letter-spacing: -.02em;
+    line-height: 1;
+    color: var(--text);
+    margin-bottom: 1.25rem;
+  }
+  .hero-name .dot { color: var(--accent); }
+  .hero-tagline {
+    font-size: 1.15rem;
+    color: var(--muted);
+    max-width: 42ch;
+    text-wrap: balance;
+    margin-bottom: 3rem;
+    line-height: 1.6;
+  }
+
+  /* Terminal prompt animation */
+  .terminal-hero {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    width: 100%;
+    max-width: 640px;
+    text-align: left;
+    overflow: hidden;
+    margin-bottom: 2.5rem;
+  }
+  .terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .7rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .dot-r { width:12px;height:12px;border-radius:50%;background:#ff5f57; }
+  .dot-y { width:12px;height:12px;border-radius:50%;background:#febc2e; }
+  .dot-g { width:12px;height:12px;border-radius:50%;background:#28c840; }
+  .terminal-body {
+    padding: 1.25rem 1.5rem;
+    font-family: var(--mono);
+    font-size: .9rem;
+    line-height: 2;
+    min-height: 160px;
+  }
+  .prompt-line { display: flex; align-items: baseline; gap: .5rem; }
+  .prompt-char { color: var(--accent); user-select: none; }
+  .prompt-cmd { color: var(--text); }
+  .typed-text { color: #a8d8a8; }
+  .cursor {
+    display: inline-block;
+    width: 8px;
+    height: 1em;
+    background: var(--accent);
+    vertical-align: text-bottom;
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+  .terminal-output { color: var(--muted); padding-left: 1.5rem; font-size: .85rem; }
+
+  /* Install command */
+  .install-cmd {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: .75rem 1.25rem;
+    font-family: var(--mono);
+    font-size: .92rem;
+    max-width: 480px;
+    width: 100%;
+    position: relative;
+    cursor: pointer;
+    transition: border-color .15s;
+  }
+  .install-cmd:hover { border-color: var(--muted); }
+  .install-cmd .ps { color: var(--accent); user-select: none; }
+  .install-cmd .cmd { color: var(--text); flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .copy-btn {
+    font-family: var(--sans);
+    font-size: .75rem;
+    color: var(--muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    white-space: nowrap;
+    transition: color .15s;
+  }
+  .copy-btn:hover { color: var(--text); }
+  .install-note {
+    font-size: .8rem;
+    color: var(--muted);
+    margin-top: .75rem;
+  }
+
+  /* SECTIONS */
+  section {
+    padding: 5rem 2rem;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+  .section-label {
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: .75rem;
+    display: block;
+  }
+  h2 {
+    font-family: var(--mono);
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: .75rem;
+    text-wrap: balance;
+  }
+  .section-intro {
+    color: var(--muted);
+    max-width: 56ch;
+    margin-bottom: 3rem;
+    font-size: .95rem;
+  }
+
+  /* Divider */
+  .divider { border: none; border-top: 1px solid var(--border); max-width: 1000px; margin: 0 auto; }
+
+  /* FEATURES GRID */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .feature-card {
+    background: var(--surface);
+    padding: 1.5rem 1.75rem;
+    transition: background .15s;
+  }
+  .feature-card:hover { background: #1e1e1e; }
+  .feature-icon {
+    font-size: 1.5rem;
+    margin-bottom: .75rem;
+    display: block;
+  }
+  .feature-title {
+    font-family: var(--mono);
+    font-size: .95rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: .4rem;
+  }
+  .feature-desc {
+    font-size: .86rem;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+
+  /* PROVIDERS */
+  .providers-table-wrap { overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .88rem;
+  }
+  th {
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: left;
+    padding: .6rem 1rem;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  td {
+    padding: .75rem 1rem;
+    border-bottom: 1px solid #1e1e1e;
+    color: var(--text);
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface); }
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: .72rem;
+    padding: .15rem .5rem;
+    border-radius: 4px;
+    background: #1e1e1e;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .env-badge {
+    font-family: var(--mono);
+    font-size: .8rem;
+    color: #8cb8e0;
+  }
+
+  /* DOCS SECTIONS */
+  .doc-section { margin-bottom: 3.5rem; }
+  h3 {
+    font-family: var(--mono);
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+  }
+  h3::before {
+    content: '#';
+    color: var(--accent);
+    font-size: .9rem;
+  }
+  p { color: var(--muted); font-size: .92rem; margin-bottom: 1rem; line-height: 1.7; }
+  ul, ol { color: var(--muted); font-size: .92rem; padding-left: 1.5rem; margin-bottom: 1rem; }
+  li { margin-bottom: .3rem; line-height: 1.6; }
+  li code, p code { font-family: var(--mono); font-size: .85em; color: #c9a97a; background: #1a1a1a; padding: .1em .35em; border-radius: 4px; }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem 1.5rem;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: .85rem;
+    line-height: 1.7;
+    margin-bottom: 1.25rem;
+  }
+  pre .c { color: var(--muted); }      /* comment */
+  pre .kw { color: #e85c2d; }          /* keyword / prompt char */
+  pre .str { color: #a8d8a8; }         /* string */
+  pre .key { color: #8cb8e0; }         /* key / flag */
+  pre .val { color: #c9a97a; }         /* value */
+
+  /* CONFIG FILE */
+  .config-block {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+  }
+  .config-header {
+    padding: .5rem 1rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: .75rem;
+    color: var(--muted);
+  }
+  .config-body {
+    padding: 1rem 1.5rem;
+    font-family: var(--mono);
+    font-size: .85rem;
+    line-height: 1.8;
+  }
+  .config-body .ck { color: #8cb8e0; }
+  .config-body .cv { color: #a8d8a8; }
+  .config-body .cc { color: var(--muted); }
+
+  /* FOOTER */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 2rem;
+    text-align: center;
+    font-size: .82rem;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+  footer a { color: var(--muted); text-decoration: none; }
+  footer a:hover { color: var(--text); }
+
+  /* FOCUS */
+  a:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cursor { animation: none; opacity: 1; }
+    html { scroll-behavior: auto; }
+  }
+</style>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="#">
+    <span class="pepper">›</span> picante
+  </a>
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#providers">Providers</a></li>
+    <li><a href="#docs">Docs</a></li>
+    <li>
+      <a class="nav-gh" href="https://github.com/picanteverde/picante" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+        GitHub
+      </a>
+    </li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <span class="hero-eyebrow">open source · bun · typescript</span>
+  <h1 class="hero-name">picante<span class="dot">.</span></h1>
+  <p class="hero-tagline">A terminal-native AI agent. Ask it anything, give it tools — it gets things done.</p>
+
+  <div class="terminal-hero">
+    <div class="terminal-bar">
+      <div class="dot-r"></div>
+      <div class="dot-y"></div>
+      <div class="dot-g"></div>
+    </div>
+    <div class="terminal-body" id="term-body">
+      <div class="prompt-line">
+        <span class="prompt-char">$</span>
+        <span class="prompt-cmd">picante <span class="typed-text" id="typed"></span><span class="cursor" id="cur"></span></span>
+      </div>
+      <div class="terminal-output" id="term-out" style="display:none"></div>
+    </div>
+  </div>
+
+  <div class="install-cmd" id="install-cmd" onclick="copyInstall()" title="Click to copy">
+    <span class="ps">$</span>
+    <span class="cmd">curl -fsSL https://picanteverde.github.io/picante/install.sh | bash</span>
+    <button class="copy-btn" id="copy-btn" onclick="copyInstall(event)">copy</button>
+  </div>
+  <p class="install-note">macOS &amp; Linux · requires bash &amp; curl</p>
+</div>
+
+<hr class="divider">
+
+<!-- FEATURES -->
+<section id="features">
+  <span class="section-label">capabilities</span>
+  <h2>Built for real work</h2>
+  <p class="section-intro">Everything you need to run agentic tasks in the terminal — without the overhead.</p>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <span class="feature-icon">🔍</span>
+      <div class="feature-title">Web search</div>
+      <div class="feature-desc">DuckDuckGo search plugin. The agent finds, reads, and synthesises pages autonomously.</div>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">🌐</span>
+      <div class="feature-title">Web browse &amp; download</div>
+      <div class="feature-desc">Fetch and parse any URL with cheerio. Optional headless browser plugin for JS-heavy pages.</div>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">📁</span>
+      <div class="feature-title">File tools</div>
+      <div class="feature-desc">Read, write, and monitor files. Give the agent eyes on your project's output in real time.</div>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">🐚</span>
+      <div class="feature-title">Shell execution</div>
+      <div class="feature-desc">Run shell commands and capture stdout/stderr. Build, test, deploy — all from one prompt.</div>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">🧠</span>
+      <div class="feature-title">Sessions</div>
+      <div class="feature-desc">Conversations persist to <code>~/.picante/sessions/</code>. Resume any session with <code>--resume</code>.</div>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">⚡</span>
+      <div class="feature-title">Skills</div>
+      <div class="feature-desc">Drop Markdown files into <code>~/.picante/skills/</code> to extend the system prompt with domain knowledge.</div>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">🔌</span>
+      <div class="feature-title">Provider plugins</div>
+      <div class="feature-desc">OpenRouter, opencode.ai, fal.ai, NVIDIA, AMD — list and query available models from any provider.</div>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">🌶</span>
+      <div class="feature-title">Any OpenAI-compatible API</div>
+      <div class="feature-desc">Point <code>LLM_BASE_URL</code> at any endpoint. Works with local Ollama, OpenAI, Anthropic proxies, and more.</div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- PROVIDERS -->
+<section id="providers">
+  <span class="section-label">providers</span>
+  <h2>Model providers</h2>
+  <p class="section-intro">Run <code>picante providers &lt;name&gt;</code> to list available models. Set the corresponding env var to authenticate.</p>
+
+  <div class="providers-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Provider</th>
+          <th>Models</th>
+          <th>API key env var</th>
+          <th>Base URL</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>openrouter</strong></td>
+          <td><span class="badge">500+ models</span></td>
+          <td><span class="env-badge">OPENROUTER_API_KEY</span></td>
+          <td><span class="badge">openrouter.ai/api/v1</span></td>
+        </tr>
+        <tr>
+          <td><strong>opencode</strong></td>
+          <td><span class="badge">37 models</span></td>
+          <td><span class="env-badge">OPENCODE_API_KEY</span></td>
+          <td><span class="badge">opencode.ai/zen/go/v1</span></td>
+        </tr>
+        <tr>
+          <td><strong>fal</strong></td>
+          <td><span class="badge">image + LLM</span></td>
+          <td><span class="env-badge">FAL_KEY</span></td>
+          <td><span class="badge">fal.run/openai</span></td>
+        </tr>
+        <tr>
+          <td><strong>nvidia</strong></td>
+          <td><span class="badge">NIM catalog</span></td>
+          <td><span class="env-badge">NVIDIA_API_KEY</span></td>
+          <td><span class="badge">integrate.api.nvidia.com/v1</span></td>
+        </tr>
+        <tr>
+          <td><strong>amd</strong></td>
+          <td><span class="badge">AMD Cloud</span></td>
+          <td><span class="env-badge">AMD_API_KEY</span></td>
+          <td><span class="badge">api.cloud.amd.com/v1</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- DOCS -->
+<section id="docs">
+  <span class="section-label">documentation</span>
+  <h2>Getting started</h2>
+  <p class="section-intro">Everything you need to install, configure, and run picante.</p>
+
+  <!-- Installation -->
+  <div class="doc-section" id="installation">
+    <h3>Installation</h3>
+    <p>The install script downloads the latest pre-built binary for your platform (macOS or Linux, x64 or arm64), removes any previous version, and places it at <code>/usr/local/bin/picante</code>.</p>
+    <pre><span class="c"># One-liner install</span>
+<span class="kw">$</span> curl -fsSL https://picanteverde.github.io/picante/install.sh | bash</pre>
+    <p>To install a specific version, download the binary directly from <a href="https://github.com/picanteverde/picante/releases" target="_blank" rel="noopener" style="color:var(--accent)">GitHub Releases</a>.</p>
+    <pre><span class="c"># Verify install</span>
+<span class="kw">$</span> picante <span class="str">"Hello, what can you do?"</span></pre>
+  </div>
+
+  <!-- Configuration -->
+  <div class="doc-section" id="configuration">
+    <h3>Configuration</h3>
+    <p>picante reads configuration from environment variables, a local <code>.picante.toml</code> in the working directory, and a global <code>~/.picante/config.toml</code>. Local overrides global.</p>
+
+    <div class="config-block">
+      <div class="config-header">~/.picante/config.toml</div>
+      <div class="config-body">
+        <span class="cc"># Required: your LLM provider</span><br>
+        <span class="ck">LLM_BASE_URL</span> = <span class="cv">"https://openrouter.ai/api/v1"</span><br>
+        <span class="ck">LLM_MODEL</span>    = <span class="cv">"google/gemini-flash-1.5"</span><br>
+        <span class="ck">LLM_API_KEY</span>  = <span class="cv">"sk-or-v1-..."</span><br><br>
+        <span class="cc"># Optional: extra headers (e.g. opencode session routing)</span><br>
+        <span class="ck">LLM_DEFAULT_HEADERS</span> = <span class="cv">'{"x-my-header": "value"}'</span>
+      </div>
+    </div>
+
+    <p>Environment variables take precedence over config files:</p>
+    <pre><span class="kw">$</span> <span class="key">LLM_BASE_URL</span>=https://api.openai.com/v1 \
+  <span class="key">LLM_MODEL</span>=gpt-4o \
+  <span class="key">LLM_API_KEY</span>=sk-... \
+  picante <span class="str">"Summarize this file"</span> README.md</pre>
+
+    <p>Use <code>picante providers &lt;name&gt;</code> to browse available models for any built-in provider:</p>
+    <pre><span class="kw">$</span> <span class="key">OPENROUTER_API_KEY</span>=sk-or-... picante providers openrouter --filter free
+<span class="kw">$</span> picante providers list</pre>
+  </div>
+
+  <!-- Usage -->
+  <div class="doc-section" id="usage">
+    <h3>Usage</h3>
+
+    <p><strong style="color:var(--text)">Single prompt</strong></p>
+    <pre><span class="kw">$</span> picante <span class="str">"Search for the latest Bun release notes and summarise them"</span></pre>
+
+    <p><strong style="color:var(--text)">Interactive REPL</strong> — run without a prompt to enter conversation mode:</p>
+    <pre><span class="kw">$</span> picante
+picante  session 20260914-083241  (Ctrl+D to exit)
+
+<span class="kw">›</span> What files are in the current directory?
+<span class="kw">›</span> Now write a README for this project</pre>
+
+    <p><strong style="color:var(--text)">Sessions</strong> — conversations persist automatically:</p>
+    <pre><span class="c"># List saved sessions</span>
+<span class="kw">$</span> picante --sessions
+
+<span class="c"># Resume the most recent session</span>
+<span class="kw">$</span> picante --resume
+
+<span class="c"># Resume a specific session by ID</span>
+<span class="kw">$</span> picante --resume 20260914-083241</pre>
+
+    <p><strong style="color:var(--text)">Skills</strong> — extend the agent's knowledge by dropping Markdown files into the skills directory:</p>
+    <pre><span class="c"># Global skills (always active)</span>
+~/.picante/skills/my-project.md
+
+<span class="c"># Project-local skills (active when run from this dir)</span>
+.picante/skills/deploy-runbook.md</pre>
+
+    <p>The content of all skill files is appended to the system prompt. Use them for project context, API docs, coding standards — anything the agent should always know.</p>
+
+    <p><strong style="color:var(--text)">Built-in tools available to the agent:</strong></p>
+    <ul>
+      <li><code>read_file</code> — read any file path</li>
+      <li><code>write_file</code> — write or overwrite a file</li>
+      <li><code>run_shell</code> — execute a shell command, capture output</li>
+      <li><code>run_monitor</code> — stream a long-running command's output</li>
+      <li><code>web_search</code> — DuckDuckGo search</li>
+      <li><code>web_browse</code> — fetch and parse a URL</li>
+      <li><code>web_browse_headless</code> — headless browser (requires puppeteer)</li>
+      <li><code>web_download</code> — download a file from a URL</li>
+      <li><code>list_models</code> — list models from a provider</li>
+    </ul>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>
+    <a href="https://github.com/picanteverde/picante" target="_blank" rel="noopener">github.com/picanteverde/picante</a>
+    &nbsp;·&nbsp;
+    MIT license
+  </p>
+</footer>
+
+<script>
+// Typing animation
+const prompts = [
+  { cmd: '"Search for the latest Bun release and summarize"', out: '→ Searching DuckDuckGo... fetched bun.sh/blog... Bun 1.x released with…' },
+  { cmd: '"Write a README for the files in this directory"', out: '→ read_file(.) → Analysing project... Writing README.md…' },
+  { cmd: '"Run the tests and fix any failures"', out: '→ run_shell(bun test) → 2 failures found... patching src/utils.ts…' },
+];
+let pi = 0, ci = 0, deleting = false, pauseFrames = 0;
+const typedEl = document.getElementById('typed');
+const outEl = document.getElementById('term-out');
+const curEl = document.getElementById('cur');
+
+function tick() {
+  const p = prompts[pi];
+  if (pauseFrames > 0) { pauseFrames--; setTimeout(tick, 80); return; }
+  if (!deleting) {
+    if (ci < p.cmd.length) {
+      typedEl.textContent = p.cmd.slice(0, ++ci);
+      setTimeout(tick, 38 + Math.random() * 30);
+    } else {
+      outEl.textContent = p.out;
+      outEl.style.display = 'block';
+      pauseFrames = 28;
+      deleting = true;
+      setTimeout(tick, 80);
+    }
+  } else {
+    if (ci > 0) {
+      typedEl.textContent = p.cmd.slice(0, --ci);
+      setTimeout(tick, 18);
+    } else {
+      outEl.style.display = 'none';
+      deleting = false;
+      pi = (pi + 1) % prompts.length;
+      pauseFrames = 6;
+      setTimeout(tick, 80);
+    }
+  }
+}
+setTimeout(tick, 900);
+
+// Copy install command
+function copyInstall(e) {
+  if (e) e.stopPropagation();
+  const cmd = 'curl -fsSL https://picanteverde.github.io/picante/install.sh | bash';
+  navigator.clipboard.writeText(cmd).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = 'copied!';
+    setTimeout(() => btn.textContent = 'copy', 1800);
+  }).catch(() => {});
+}
+</script>
