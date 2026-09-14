@@ -119,7 +119,11 @@ if (resumeFlag !== -1) {
   session = { id: newSessionId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), messages: [] };
 }
 
-const promptArg = args.filter((_, i) => i !== resumeFlag && i !== resumeFlag + 1 && args[i] !== '--sessions').join(' ').trim();
+const promptArg = args.filter((_, i) =>
+  i !== resumeFlag &&
+  (resumeFlag === -1 || i !== resumeFlag + 1) &&
+  args[i] !== '--sessions'
+).join(' ').trim();
 
 if (promptArg) {
   await runPrompt(promptArg, session);
