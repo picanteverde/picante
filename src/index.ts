@@ -172,6 +172,23 @@ if (args[0] === 'config') {
 
 // Load config only when actually running the agent
 const config = loadConfig();
+
+if (!config.apiKey) {
+  console.error(`\x1b[1mpicante:\x1b[0m No API key configured.
+
+Set up a provider first:
+  \x1b[2mpicante config provider opencode "sk-..."\x1b[0m
+  \x1b[2mpicante config provider openrouter "sk-or-..."\x1b[0m
+
+Or set manually in \x1b[2m~/.picante/config.toml\x1b[0m:
+  LLM_BASE_URL = "https://openrouter.ai/api/v1"
+  LLM_MODEL    = "google/gemini-flash-1.5"
+  LLM_API_KEY  = "sk-..."
+
+Docs: https://picanteverde.github.io/picante/#configuration`);
+  process.exit(1);
+}
+
 const skills = loadSkills(config.skillDirs);
 
 const SYSTEM_PROMPT = `You are picante, a capable AI agent running in a terminal. You can read and write files, run shell commands, search the web, and browse URLs. You have access to tools — use them whenever they help accomplish the task. Be concise and direct.${skills}`;
