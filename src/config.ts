@@ -1,6 +1,6 @@
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { homedir } from 'os';
-import { join } from 'path';
+import { join, dirname } from 'path';
 
 export interface Config {
   baseUrl: string;
@@ -11,13 +11,15 @@ export interface Config {
   skillDirs: string[];
 }
 
+export const GLOBAL_CONFIG_PATH = join(homedir(), '.picante', 'config.toml');
+
 function readToml(path: string): Record<string, string> {
   try {
     const text = readFileSync(path, 'utf8');
     const out: Record<string, string> = {};
     for (const line of text.split('\n')) {
-      const m = line.match(/^(\w+)\s*=\s*"(.+)"/);
-      if (m?.[1] && m?.[2]) out[m[1]] = m[2];
+      const m = line.match(/^(\w+)\s*=\s*"(.*)"/);
+      if (m?.[1] != null && m?.[2] != null) out[m[1]] = m[2];
     }
     return out;
   } catch {
@@ -25,9 +27,32 @@ function readToml(path: string): Record<string, string> {
   }
 }
 
+export function writeConfig(updates: Record<string, string>, path = GLOBAL_CONFIG_PATH): void {
+  mkdirSync(dirname(path), { recursive: true });
+  let lines: string[] = [];
+  try { lines = readFileSync(path, 'utf8').split('\n'); } catch {}
+
+  const written = new Set<string>();
+  const newLines = lines.map(line => {
+    const m = line.match(/^(\w+)\s*=/);
+    if (m?.[1] && updates[m[1]] !== undefined) {
+      written.add(m[1]);
+      return `${m[1]} = "${updates[m[1]]}"`;
+    }
+    return line;
+  });
+
+  for (const [key, value] of Object.entries(updates)) {
+    if (!written.has(key)) newLines.push(`${key} = "${value}"`);
+  }
+
+  // Drop trailing blank lines then add one
+  writeFileSync(path, newLines.join('\n').trimEnd() + '\n');
+}
+
 export function loadConfig(): Config {
   const toml: Record<string, string> = {
-    ...readToml(join(homedir(), '.picante', 'config.toml')),
+    ...readToml(GLOBAL_CONFIG_PATH),
     ...readToml(join(process.cwd(), '.picante.toml')),
   };
 

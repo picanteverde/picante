@@ -576,29 +576,41 @@
   <!-- Configuration -->
   <div class="doc-section" id="configuration">
     <h3>Configuration</h3>
-    <p>picante reads configuration from environment variables, a local <code>.picante.toml</code> in the working directory, and a global <code>~/.picante/config.toml</code>. Local overrides global.</p>
+    <p>The quickest way to configure a provider is with <code>picante config provider</code>. It writes the API key and sets the active base URL in one step:</p>
+
+    <pre><span class="c"># Set opencode as active provider + store the API key</span>
+<span class="kw">$</span> picante config provider opencode <span class="str">"sk-..."</span>
+
+<span class="c"># Switch to openrouter (stores key, updates active provider)</span>
+<span class="kw">$</span> picante config provider openrouter <span class="str">"sk-or-..."</span>
+
+<span class="c"># Then pick a model interactively</span>
+<span class="kw">$</span> picante config model
+
+<span class="c"># Or set a model directly</span>
+<span class="kw">$</span> picante config model glm-5.3-flash
+
+<span class="c"># Show current configuration</span>
+<span class="kw">$</span> picante config show</pre>
+
+    <p>Each provider's API key is stored under its own key in <code>~/.picante/config.toml</code>, so you can store multiple providers and switch between them freely. <code>LLM_API_KEY</code> always holds the active provider's key.</p>
 
     <div class="config-block">
-      <div class="config-header">~/.picante/config.toml</div>
+      <div class="config-header">~/.picante/config.toml (example with multiple providers)</div>
       <div class="config-body">
-        <span class="cc"># Required: your LLM provider</span><br>
-        <span class="ck">LLM_BASE_URL</span> = <span class="cv">"https://openrouter.ai/api/v1"</span><br>
-        <span class="ck">LLM_MODEL</span>    = <span class="cv">"google/gemini-flash-1.5"</span><br>
-        <span class="ck">LLM_API_KEY</span>  = <span class="cv">"sk-or-v1-..."</span><br><br>
-        <span class="cc"># Optional: extra headers (e.g. opencode session routing)</span><br>
-        <span class="ck">LLM_DEFAULT_HEADERS</span> = <span class="cv">'{"x-my-header": "value"}'</span>
+        <span class="cc"># Active provider</span><br>
+        <span class="ck">LLM_BASE_URL</span>       = <span class="cv">"https://opencode.ai/zen/go/v1"</span><br>
+        <span class="ck">LLM_MODEL</span>          = <span class="cv">"glm-5.3-flash"</span><br>
+        <span class="ck">LLM_API_KEY</span>        = <span class="cv">"sk-opencode-..."</span><br><br>
+        <span class="cc"># Stored provider keys</span><br>
+        <span class="ck">OPENCODE_API_KEY</span>   = <span class="cv">"sk-opencode-..."</span><br>
+        <span class="ck">OPENROUTER_API_KEY</span> = <span class="cv">"sk-or-..."</span><br>
+        <span class="ck">NVIDIA_API_KEY</span>     = <span class="cv">"nvapi-..."</span>
       </div>
     </div>
 
-    <p>Environment variables take precedence over config files:</p>
-    <pre><span class="kw">$</span> <span class="key">LLM_BASE_URL</span>=https://api.openai.com/v1 \
-  <span class="key">LLM_MODEL</span>=gpt-4o \
-  <span class="key">LLM_API_KEY</span>=sk-... \
-  picante <span class="str">"Summarize this file"</span> README.md</pre>
-
-    <p>Use <code>picante providers &lt;name&gt;</code> to browse available models for any built-in provider:</p>
-    <pre><span class="kw">$</span> <span class="key">OPENROUTER_API_KEY</span>=sk-or-... picante providers openrouter --filter free
-<span class="kw">$</span> picante providers list</pre>
+    <p>Environment variables take precedence over the config file — useful for per-project overrides:</p>
+    <pre><span class="kw">$</span> <span class="key">LLM_MODEL</span>=gpt-4o picante <span class="str">"Summarize this file"</span></pre>
   </div>
 
   <!-- Usage -->
