@@ -408,6 +408,7 @@
     <li><a href="#features">Features</a></li>
     <li><a href="#providers">Providers</a></li>
     <li><a href="#docs">Docs</a></li>
+    <li><a href="browser/" style="color:var(--accent);font-weight:600">Browser ↗</a></li>
     <li>
       <a class="nav-gh" href="https://github.com/picanteverde/picante" target="_blank" rel="noopener">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
@@ -498,6 +499,40 @@
       <div class="feature-desc">Point <code>LLM_BASE_URL</code> at any endpoint. Works with local Ollama, OpenAI, Anthropic proxies, and more.</div>
     </div>
   </div>
+</section>
+
+<hr class="divider">
+
+<!-- BROWSER AGENT -->
+<section id="browser" style="text-align:center;padding:3.5rem 1.5rem">
+  <span class="section-label">browser agent</span>
+  <h2 style="margin-bottom:1rem">picante in your browser</h2>
+  <p class="section-intro" style="max-width:560px;margin:0 auto 2rem">
+    No install. Open a local folder, configure your API key, and start working on your project — entirely in Chrome.
+    Backed by the <strong>File System Access API</strong> and the same plugin architecture as the CLI.
+  </p>
+  <div style="display:flex;justify-content:center;gap:1rem;flex-wrap:wrap;margin-bottom:2rem">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem 1.5rem;text-align:left;min-width:180px">
+      <div style="font-size:1.5rem;margin-bottom:.4rem">📂</div>
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:.25rem">Local folder access</div>
+      <div style="font-size:.82rem;color:var(--muted)">Pick any folder. Read and write files directly.</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem 1.5rem;text-align:left;min-width:180px">
+      <div style="font-size:1.5rem;margin-bottom:.4rem">💬</div>
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:.25rem">Chat interface</div>
+      <div style="font-size:.82rem;color:var(--muted)">Same agent loop as the CLI, live in the browser.</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem 1.5rem;text-align:left;min-width:180px">
+      <div style="font-size:1.5rem;margin-bottom:.4rem">🔌</div>
+      <div style="font-weight:600;font-size:.9rem;margin-bottom:.25rem">Any provider</div>
+      <div style="font-size:.82rem;color:var(--muted)">opencode, openrouter, openai, and more.</div>
+    </div>
+  </div>
+  <a href="browser/" style="display:inline-flex;align-items:center;gap:.5rem;background:var(--accent);color:#fff;text-decoration:none;padding:.75rem 2rem;border-radius:8px;font-weight:700;font-size:1rem;transition:background .15s"
+     onmouseover="this.style.background='var(--accent-dim)'" onmouseout="this.style.background='var(--accent)'">
+    Open browser agent ↗
+  </a>
+  <p style="margin-top:1rem;font-size:.8rem;color:var(--muted)">Requires Chrome 86+ or Edge 86+ · API key stored locally in your browser</p>
 </section>
 
 <hr class="divider">
