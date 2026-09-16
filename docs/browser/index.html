@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>picante — browser agent</title>
+<meta name="description" content="AI coding agent running entirely in your browser. Open a local folder, chat with the agent, read and write files — no installs, no server.">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0e0e0e;--surface:#171717;--surface2:#1e1e1e;
+  --border:#2b2b2b;--border2:#333;
+  --accent:#e85c2d;--accent-dim:#c04a22;
+  --text:#f0ece6;--muted:#7d7570;--dim:#444;
+  --mono:'SF Mono','Cascadia Code','Fira Code','Consolas',monospace;
+  --sans:system-ui,-apple-system,'Segoe UI',sans-serif;
+  --user-bubble:#b84520;--ai-bg:#171717;
+  --tool-bg:#111;--tool-text:#6e7681;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+
+/* LAYOUT */
+#app{display:flex;flex-direction:column;height:100dvh}
+header{height:48px;display:flex;align-items:center;padding:0 1rem;border-bottom:1px solid var(--border);gap:.6rem;flex-shrink:0;background:rgba(14,14,14,.96);backdrop-filter:blur(8px)}
+.logo{font-family:var(--mono);font-weight:700;font-size:1rem;color:var(--text);display:flex;align-items:center;gap:.35rem}
+.logo .pepper{color:var(--accent)}
+.hdr-spacer{flex:1}
+.hdr-model{font-size:.78rem;color:var(--muted);font-family:var(--mono);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hdr-btn{background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--muted);padding:.28rem .6rem;cursor:pointer;font-size:.9rem;transition:border-color .15s,color .15s}
+.hdr-btn:hover,.hdr-btn.active{border-color:var(--accent);color:var(--accent)}
+
+#body{display:flex;flex:1;overflow:hidden}
+
+/* SIDEBAR */
+#sidebar{width:220px;border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;transition:width .2s}
+#sidebar.hidden{width:0;overflow:hidden;border:none}
+.sidebar-hdr{padding:.5rem .6rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:.4rem;min-height:38px}
+.sidebar-hdr span{font-size:.75rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.open-btn{padding:.2rem .55rem;background:var(--surface2);border:1px solid var(--border2);border-radius:5px;color:var(--accent);font-size:.75rem;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.open-btn:hover{background:var(--accent);color:#fff}
+#tree{flex:1;overflow-y:auto;padding:.3rem 0}
+.tree-empty{padding:1.2rem .8rem;font-size:.78rem;color:var(--dim);text-align:center;line-height:1.5}
+.tree-item{display:flex;align-items:center;gap:.35rem;padding:.2rem .5rem .2rem calc(.5rem + var(--depth,.5rem));cursor:pointer;font-size:.82rem;color:#c9d1d9;user-select:none;border-radius:4px;white-space:nowrap;overflow:hidden}
+.tree-item:hover{background:var(--surface2)}
+.tree-arrow{font-size:.65rem;color:var(--dim);width:.7rem;flex-shrink:0}
+
+/* MAIN */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+
+/* CONFIG PANEL */
+#config-panel{display:none;padding:1.5rem;overflow-y:auto;flex:1}
+#config-panel.visible{display:block}
+.cfg-title{font-weight:600;margin-bottom:1.25rem;font-size:.95rem}
+.cfg-field{margin-bottom:1rem}
+.cfg-label{font-size:.78rem;color:var(--muted);margin-bottom:.35rem;display:block}
+.cfg-input,.cfg-select{width:100%;padding:.5rem .75rem;background:#111;border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.88rem;outline:none;font-family:var(--sans)}
+.cfg-input:focus,.cfg-select:focus{border-color:var(--accent)}
+.cfg-row{display:flex;gap:.5rem}
+.cfg-row .cfg-input{flex:1}
+.show-btn{padding:.5rem .75rem;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:var(--muted);cursor:pointer;font-size:.8rem}
+.save-btn{padding:.6rem 1.4rem;background:var(--accent);border:none;border-radius:6px;color:#fff;font-weight:600;cursor:pointer;font-size:.88rem;margin-top:.5rem;transition:background .15s}
+.save-btn:hover{background:var(--accent-dim)}
+.save-btn.ok{background:#2d6a2d}
+
+/* CHAT */
+#chat-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#messages{flex:1;overflow-y:auto;padding:1rem;display:flex;flex-direction:column;gap:.6rem}
+.msg-user{display:flex;justify-content:flex-end}
+.msg-bubble-user{max-width:78%;padding:.6rem .95rem;border-radius:16px 16px 4px 16px;background:var(--user-bubble);color:#fff;font-size:.9rem;white-space:pre-wrap;word-break:break-word;line-height:1.55}
+.msg-ai{display:flex;flex-direction:column;gap:.25rem}
+.msg-bubble-ai{max-width:84%;padding:.6rem .95rem;border-radius:16px 16px 16px 4px;background:var(--ai-bg);border:1px solid var(--border);color:var(--text);font-size:.9rem;white-space:pre-wrap;word-break:break-word;line-height:1.55}
+.tool-call{display:flex;align-items:baseline;gap:.35rem;font-size:.78rem;color:var(--tool-text);font-family:var(--mono);padding:.1rem 0}
+.tool-call .tc-icon{color:var(--accent)}
+.tool-result{font-size:.76rem;color:#4d5361;font-family:var(--mono);padding:.05rem 0 .05rem .9rem}
+.msg-error{padding:.6rem .9rem;border-radius:8px;background:#2d1b1b;border:1px solid #5a1e1e;color:#f87171;font-size:.85rem}
+.msg-thinking{display:flex;gap:.3rem;padding:.6rem .95rem;align-items:center;color:var(--muted);font-size:.85rem}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:bounce .9s infinite}
+.dot:nth-child(2){animation-delay:.15s}.dot:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+
+#input-bar{border-top:1px solid var(--border);padding:.7rem;display:flex;gap:.5rem;flex-shrink:0;align-items:flex-end}
+#prompt{flex:1;resize:none;background:#111;border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:.6rem .8rem;font-size:.9rem;outline:none;font-family:var(--sans);line-height:1.5;max-height:120px;overflow-y:auto}
+#prompt:focus{border-color:var(--accent)}
+#send-btn{padding:.6rem 1.1rem;background:var(--accent);border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;font-size:1rem;transition:background .15s;flex-shrink:0;height:38px;display:flex;align-items:center;justify-content:center}
+#send-btn:hover{background:var(--accent-dim)}
+#send-btn:disabled{background:#333;cursor:not-allowed}
+
+/* MODAL overlay for unsupported browser */
+#unsupported{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:999;align-items:center;justify-content:center}
+#unsupported.show{display:flex}
+.modal-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:2rem;max-width:400px;text-align:center;line-height:1.7}
+.modal-box h2{margin-bottom:.75rem;color:var(--accent)}
+
+@media(max-width:600px){
+  #sidebar{width:0;overflow:hidden;border:none}
+  .hdr-model{display:none}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="logo"><span class="pepper">🌶</span> picante</div>
+    <span id="hdr-dir" style="font-size:.78rem;color:var(--muted);font-family:var(--mono);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+    <div class="hdr-spacer"></div>
+    <span class="hdr-model" id="hdr-model">not configured</span>
+    <button class="hdr-btn" id="toggle-sidebar-btn" title="Toggle file explorer">📁</button>
+    <button class="hdr-btn" id="config-btn" title="Settings">⚙</button>
+  </header>
+
+  <div id="body">
+    <div id="sidebar">
+      <div class="sidebar-hdr">
+        <span id="tree-dir-name">No folder open</span>
+        <button class="open-btn" id="open-dir-btn">Open…</button>
+      </div>
+      <div id="tree"><div class="tree-empty">Click "Open…" to<br>pick a project folder</div></div>
+    </div>
+
+    <div id="main">
+      <div id="config-panel">
+        <div class="cfg-title">Settings</div>
+        <div class="cfg-field">
+          <label class="cfg-label">Provider</label>
+          <select class="cfg-select" id="cfg-provider">
+            <option value="opencode">opencode (opencode.ai)</option>
+            <option value="openrouter">openrouter (openrouter.ai)</option>
+            <option value="openai">openai</option>
+            <option value="fal">fal.ai</option>
+            <option value="nvidia">NVIDIA NIM</option>
+            <option value="custom">custom base URL</option>
+          </select>
+        </div>
+        <div class="cfg-field">
+          <label class="cfg-label">Base URL</label>
+          <input class="cfg-input" id="cfg-url" type="text" placeholder="https://opencode.ai/zen/go/v1">
+        </div>
+        <div class="cfg-field">
+          <label class="cfg-label">API Key</label>
+          <div class="cfg-row">
+            <input class="cfg-input" id="cfg-key" type="password" placeholder="sk-…">
+            <button class="show-btn" id="show-key-btn">Show</button>
+          </div>
+        </div>
+        <div class="cfg-field">
+          <label class="cfg-label">Model</label>
+          <input class="cfg-input" id="cfg-model" type="text" placeholder="glm-5.3-flash">
+        </div>
+        <button class="save-btn" id="save-cfg-btn">Save</button>
+      </div>
+
+      <div id="chat-wrap">
+        <div id="messages">
+          <div style="text-align:center;font-size:.78rem;color:var(--dim);padding:.5rem 0">— picante browser agent —</div>
+        </div>
+        <div id="input-bar">
+          <textarea id="prompt" rows="2" placeholder="Type a message… (Enter to send, Shift+Enter for newline)"></textarea>
+          <button id="send-btn">↑</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="unsupported">
+  <div class="modal-box">
+    <h2>Browser not supported</h2>
+    <p>picante browser requires the <strong>File System Access API</strong>, available in Chrome 86+ and Edge 86+. Firefox and Safari are not yet supported.</p>
+  </div>
+</div>
+
+<script type="module">
+// ── Config ──────────────────────────────────────────────────────
+const PROVIDERS = {
+  opencode:    'https://opencode.ai/zen/go/v1',
+  openrouter:  'https://openrouter.ai/api/v1',
+  openai:      'https://api.openai.com/v1',
+  fal:         'https://fal.run/fal-ai',
+  nvidia:      'https://integrate.api.nvidia.com/v1',
+};
+
+function loadConfig() {
+  return {
+    baseUrl: localStorage.getItem('picante:LLM_BASE_URL') || PROVIDERS.opencode,
+    apiKey:  localStorage.getItem('picante:LLM_API_KEY')  || '',
+    model:   localStorage.getItem('picante:LLM_MODEL')    || 'glm-5.3-flash',
+  };
+}
+function saveConfig(c) {
+  localStorage.setItem('picante:LLM_BASE_URL', c.baseUrl);
+  localStorage.setItem('picante:LLM_API_KEY',  c.apiKey);
+  localStorage.setItem('picante:LLM_MODEL',    c.model);
+}
+
+// ── File System Access API ───────────────────────────────────────
+let dirHandle = null;
+
+async function pickFolder() {
+  if (!('showDirectoryPicker' in window)) {
+    document.getElementById('unsupported').classList.add('show');
+    return;
+  }
+  try {
+    dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    document.getElementById('tree-dir-name').textContent = dirHandle.name;
+    document.getElementById('hdr-dir').textContent = '📁 ' + dirHandle.name;
+    await refreshTree();
+  } catch { /* user cancelled */ }
+}
+
+async function getDirHandle(path) {
+  const parts = path.replace(/^\/+/, '').split('/').filter(Boolean);
+  let dir = dirHandle;
+  for (const p of parts) dir = await dir.getDirectoryHandle(p);
+  return dir;
+}
+
+async function fsRead(path) {
+  if (!dirHandle) return 'Error: no folder open. Click "Open…" first.';
+  try {
+    const parts = path.replace(/^\/+/, '').split('/').filter(Boolean);
+    const name = parts.pop();
+    const dir = parts.length ? await getDirHandle(parts.join('/')) : dirHandle;
+    const fh = await dir.getFileHandle(name);
+    return (await fh.getFile()).text();
+  } catch (e) { return `Error: ${e.message}`; }
+}
+
+async function fsWrite(path, content) {
+  if (!dirHandle) return 'Error: no folder open. Click "Open…" first.';
+  try {
+    const parts = path.replace(/^\/+/, '').split('/').filter(Boolean);
+    const name = parts.pop();
+    let dir = dirHandle;
+    for (const p of parts) dir = await dir.getDirectoryHandle(p, { create: true });
+    const fh = await dir.getFileHandle(name, { create: true });
+    const w = await fh.createWritable();
+    await w.write(content);
+    await w.close();
+    await refreshTree();
+    return `Written ${new TextEncoder().encode(content).length} bytes to ${path}`;
+  } catch (e) { return `Error: ${e.message}`; }
+}
+
+async function fsList(path) {
+  if (!dirHandle) return 'Error: no folder open.';
+  try {
+    const dir = (!path || path === '.' || path === '/') ? dirHandle : await getDirHandle(path);
+    const entries = [];
+    for await (const [name, h] of dir) entries.push(h.kind === 'directory' ? name + '/' : name);
+    return entries.sort().join('\n') || '(empty)';
+  } catch (e) { return `Error: ${e.message}`; }
+}
+
+// ── Tree rendering ────────────────────────────────────────────────
+async function refreshTree(dir = dirHandle, container = document.getElementById('tree'), path = '', depth = 0) {
+  if (!dir) return;
+  if (depth === 0) container.innerHTML = '';
+  const entries = [];
+  for await (const [name, h] of dir) entries.push({ name, kind: h.kind, handle: h });
+  entries.sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === 'directory' ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+  for (const { name, kind, handle } of entries) {
+    const fullPath = path ? `${path}/${name}` : name;
+    const item = document.createElement('div');
+    item.className = 'tree-item';
+    item.style.setProperty('--depth', `${depth * 1 + 0.5}rem`);
+    const arrow = document.createElement('span');
+    arrow.className = 'tree-arrow';
+    arrow.textContent = kind === 'directory' ? '▸' : '';
+    const icon = document.createElement('span');
+    icon.textContent = kind === 'directory' ? '📂' : fileIcon(name);
+    const label = document.createElement('span');
+    label.textContent = name;
+    label.style.cssText = 'overflow:hidden;text-overflow:ellipsis';
+    item.append(arrow, icon, label);
+
+    if (kind === 'directory') {
+      let expanded = false;
+      const childContainer = document.createElement('div');
+      item.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!expanded) {
+          await refreshTree(handle, childContainer, fullPath, depth + 1);
+          arrow.textContent = '▾';
+          icon.textContent = '📂';
+        } else {
+          childContainer.innerHTML = '';
+          arrow.textContent = '▸';
+        }
+        expanded = !expanded;
+      });
+      container.appendChild(item);
+      container.appendChild(childContainer);
+    } else {
+      item.addEventListener('click', () => openFile(fullPath));
+      container.appendChild(item);
+    }
+  }
+}
+
+function fileIcon(name) {
+  if (/\.(ts|tsx)$/.test(name)) return '🔷';
+  if (/\.(js|jsx|mjs)$/.test(name)) return '🟨';
+  if (/\.json$/.test(name)) return '📋';
+  if (/\.md$/.test(name)) return '📝';
+  if (/\.(html|css|svg)$/.test(name)) return '🎨';
+  if (/\.(png|jpg|gif|webp|ico)$/.test(name)) return '🖼';
+  return '📄';
+}
+
+// ── Inline file editor ─────────────────────────────────────────────
+let editorPath = null;
+let editorContent = '';
+
+function openFile(path) {
+  const editor = getOrCreateEditor();
+  editor.style.display = 'flex';
+  document.getElementById('chat-wrap').style.display = 'none';
+  editorPath = path;
+  editor.querySelector('.ed-title').textContent = path;
+  const ta = editor.querySelector('textarea');
+  ta.value = 'Loading…';
+  fsRead(path).then(txt => { ta.value = txt; editorContent = txt; });
+}
+
+function getOrCreateEditor() {
+  let ed = document.getElementById('file-editor');
+  if (ed) return ed;
+  ed = document.createElement('div');
+  ed.id = 'file-editor';
+  ed.style.cssText = 'display:none;flex-direction:column;flex:1;overflow:hidden';
+  ed.innerHTML = `
+    <div style="display:flex;align-items:center;padding:.5rem .75rem;border-bottom:1px solid var(--border);gap:.5rem">
+      <span class="ed-title" style="flex:1;font-family:var(--mono);font-size:.8rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis"></span>
+      <button class="ed-save" style="padding:.25rem .75rem;background:var(--accent);border:none;border-radius:5px;color:#fff;font-size:.8rem;cursor:pointer">Save</button>
+      <button class="ed-close" style="padding:.25rem .5rem;background:var(--surface2);border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-size:.8rem;cursor:pointer">✕</button>
+    </div>
+    <textarea style="flex:1;resize:none;background:#0a0a0a;border:none;outline:none;color:var(--text);padding:.75rem;font-family:var(--mono);font-size:.83rem;line-height:1.6;tab-size:2"></textarea>
+  `;
+  ed.querySelector('.ed-save').addEventListener('click', async () => {
+    if (!editorPath) return;
+    const ta = ed.querySelector('textarea');
+    const btn = ed.querySelector('.ed-save');
+    await fsWrite(editorPath, ta.value);
+    btn.textContent = 'Saved ✓';
+    btn.style.background = '#2d6a2d';
+    setTimeout(() => { btn.textContent = 'Save'; btn.style.background = 'var(--accent)'; }, 1500);
+  });
+  ed.querySelector('.ed-close').addEventListener('click', () => {
+    ed.style.display = 'none';
+    document.getElementById('chat-wrap').style.display = 'flex';
+  });
+  document.getElementById('main').insertBefore(ed, document.getElementById('chat-wrap'));
+  return ed;
+}
+
+// ── OpenAI streaming ─────────────────────────────────────────────
+async function* streamSSE(response) {
+  const reader = response.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() ?? '';
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const data = line.slice(6).trim();
+      if (data === '[DONE]') return;
+      try { yield JSON.parse(data); } catch {}
+    }
+  }
+}
+
+// ── Agent tools ──────────────────────────────────────────────────
+const TOOLS = [
+  { type: 'function', function: { name: 'read_file', description: 'Read a file from the open folder.', parameters: { type: 'object', properties: { path: { type: 'string', description: 'Path relative to the open folder.' } }, required: ['path'] } } },
+  { type: 'function', function: { name: 'write_file', description: 'Write a file in the open folder. Creates parent directories as needed.', parameters: { type: 'object', properties: { path: { type: 'string' }, content: { type: 'string' } }, required: ['path', 'content'] } } },
+  { type: 'function', function: { name: 'list_files', description: 'List files and directories at a path in the open folder.', parameters: { type: 'object', properties: { path: { type: 'string', description: 'Path to list. Use "." for root.' } }, required: [] } } },
+];
+
+async function executeTool(name, args) {
+  if (name === 'read_file') return fsRead(args.path);
+  if (name === 'write_file') return fsWrite(args.path, args.content);
+  if (name === 'list_files') return fsList(args.path || '.');
+  return `Error: unknown tool "${name}"`;
+}
+
+// ── Agent loop ──────────────────────────────────────────────────
+const history = [];
+let running = false;
+
+async function runAgent(userText) {
+  if (running) return;
+  running = true;
+  setSendState(true);
+
+  history.push({ role: 'user', content: userText });
+
+  const cfg = loadConfig();
+  if (!cfg.apiKey) {
+    addError('No API key. Click ⚙ to configure a provider.');
+    running = false; setSendState(false); return;
+  }
+
+  const extraHeaders = {};
+  if (cfg.baseUrl.includes('opencode.ai')) {
+    extraHeaders['x-opencode-session'] = crypto.randomUUID();
+    extraHeaders['User-Agent'] = 'picante/1.0';
+  }
+
+  const thinking = addThinking();
+
+  for (let step = 0; step < 50; step++) {
+    let response;
+    try {
+      response = await fetch(`${cfg.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${cfg.apiKey}`,
+          ...extraHeaders,
+        },
+        body: JSON.stringify({
+          model: cfg.model,
+          messages: [
+            { role: 'system', content: 'You are picante, an AI agent running in the browser. You have access to the user\'s local folder via the File System Access API. Use read_file, write_file, and list_files to interact with their project. Be concise and helpful.' },
+            ...history,
+          ],
+          tools: TOOLS,
+          tool_choice: 'auto',
+          stream: true,
+        }),
+      });
+    } catch (e) {
+      thinking.remove();
+      addError(`Network error: ${e.message}`);
+      break;
+    }
+
+    if (!response.ok) {
+      thinking.remove();
+      const err = await response.json().catch(() => ({}));
+      addError(`API error ${response.status}: ${err?.error?.message || response.statusText}`);
+      break;
+    }
+
+    // Parse streaming response
+    let textBuffer = '';
+    const toolCalls = {};
+    const aiBlock = addAIBlock();
+
+    for await (const chunk of streamSSE(response)) {
+      const delta = chunk.choices?.[0]?.delta;
+      if (!delta) continue;
+
+      if (delta.content) {
+        textBuffer += delta.content;
+        aiBlock.setText(textBuffer);
+        if (thinking.parentNode) thinking.remove();
+      }
+
+      if (delta.tool_calls) {
+        for (const tc of delta.tool_calls) {
+          if (!toolCalls[tc.index]) toolCalls[tc.index] = { id: '', name: '', args: '' };
+          if (tc.id) toolCalls[tc.index].id = tc.id;
+          if (tc.function?.name) toolCalls[tc.index].name = tc.function.name;
+          if (tc.function?.arguments) toolCalls[tc.index].args += tc.function.arguments;
+        }
+      }
+
+      const reason = chunk.choices?.[0]?.finish_reason;
+      if (reason === 'stop' || reason === 'length') break;
+    }
+
+    const tcList = Object.values(toolCalls);
+
+    if (textBuffer) {
+      history.push({ role: 'assistant', content: textBuffer, ...(tcList.length ? { tool_calls: tcList.map((tc, i) => ({ id: tc.id || `call_${i}`, type: 'function', function: { name: tc.name, arguments: tc.args } })) } : {}) });
+    }
+
+    if (tcList.length === 0) break; // no tool calls → done
+
+    if (thinking.parentNode) thinking.remove();
+
+    // Execute tool calls
+    const toolResults = [];
+    for (const tc of tcList) {
+      let args = {};
+      try { args = JSON.parse(tc.args); } catch {}
+      aiBlock.addToolCall(tc.name, tc.args);
+      const result = await executeTool(tc.name, args);
+      aiBlock.addToolResult(result);
+      toolResults.push({ role: 'tool', tool_call_id: tc.id || `call_${tcList.indexOf(tc)}`, content: result });
+    }
+
+    if (!textBuffer && tcList.length) {
+      history.push({
+        role: 'assistant',
+        content: null,
+        tool_calls: tcList.map((tc, i) => ({ id: tc.id || `call_${i}`, type: 'function', function: { name: tc.name, arguments: tc.args } })),
+      });
+    }
+    for (const r of toolResults) history.push(r);
+  }
+
+  if (thinking.parentNode) thinking.remove();
+  running = false;
+  setSendState(false);
+  document.getElementById('prompt').focus();
+}
+
+// ── DOM helpers ──────────────────────────────────────────────────
+const msgs = document.getElementById('messages');
+
+function scrollBottom() { msgs.scrollTop = msgs.scrollHeight; }
+
+function addThinking() {
+  const el = document.createElement('div');
+  el.className = 'msg-thinking';
+  el.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
+  msgs.appendChild(el);
+  scrollBottom();
+  return el;
+}
+
+function addAIBlock() {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-ai';
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble-ai';
+  wrap.appendChild(bubble);
+  msgs.appendChild(wrap);
+  scrollBottom();
+  return {
+    setText(t) { bubble.textContent = t; scrollBottom(); },
+    addToolCall(name, argsStr) {
+      const preview = argsStr.length > 80 ? argsStr.slice(0, 77) + '…' : argsStr;
+      const tc = document.createElement('div');
+      tc.className = 'tool-call';
+      tc.innerHTML = `<span class="tc-icon">⚙</span><span>${esc(name)}(${esc(preview)})</span>`;
+      wrap.appendChild(tc);
+      scrollBottom();
+    },
+    addToolResult(result) {
+      const preview = (result.split('\n')[0] ?? '').slice(0, 80);
+      const tr = document.createElement('div');
+      tr.className = 'tool-result';
+      tr.textContent = `↳ ${preview}${result.length > 80 ? '…' : ''}`;
+      wrap.appendChild(tr);
+      scrollBottom();
+    },
+  };
+}
+
+function addUserMessage(text) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-user';
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble-user';
+  bubble.textContent = text;
+  wrap.appendChild(bubble);
+  msgs.appendChild(wrap);
+  scrollBottom();
+}
+
+function addError(msg) {
+  const el = document.createElement('div');
+  el.className = 'msg-error';
+  el.textContent = msg;
+  msgs.appendChild(el);
+  scrollBottom();
+  running = false;
+  setSendState(false);
+}
+
+function setSendState(busy) {
+  const btn = document.getElementById('send-btn');
+  btn.disabled = busy;
+  btn.textContent = busy ? '…' : '↑';
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Config panel wiring ──────────────────────────────────────────
+function initConfigPanel() {
+  const cfg = loadConfig();
+  document.getElementById('cfg-url').value = cfg.baseUrl;
+  document.getElementById('cfg-key').value = cfg.apiKey;
+  document.getElementById('cfg-model').value = cfg.model;
+  document.getElementById('hdr-model').textContent = cfg.model || 'not configured';
+
+  const providerSelect = document.getElementById('cfg-provider');
+  const entry = Object.entries(PROVIDERS).find(([,url]) => url === cfg.baseUrl);
+  providerSelect.value = entry ? entry[0] : 'custom';
+
+  providerSelect.addEventListener('change', () => {
+    const url = PROVIDERS[providerSelect.value];
+    if (url) document.getElementById('cfg-url').value = url;
+  });
+
+  document.getElementById('show-key-btn').addEventListener('click', () => {
+    const inp = document.getElementById('cfg-key');
+    const btn = document.getElementById('show-key-btn');
+    if (inp.type === 'password') { inp.type = 'text'; btn.textContent = 'Hide'; }
+    else { inp.type = 'password'; btn.textContent = 'Show'; }
+  });
+
+  document.getElementById('save-cfg-btn').addEventListener('click', () => {
+    const c = {
+      baseUrl: document.getElementById('cfg-url').value.trim(),
+      apiKey:  document.getElementById('cfg-key').value.trim(),
+      model:   document.getElementById('cfg-model').value.trim(),
+    };
+    saveConfig(c);
+    document.getElementById('hdr-model').textContent = c.model || 'not configured';
+    const btn = document.getElementById('save-cfg-btn');
+    btn.textContent = 'Saved ✓'; btn.classList.add('ok');
+    setTimeout(() => { btn.textContent = 'Save'; btn.classList.remove('ok'); toggleConfig(false); }, 1000);
+  });
+}
+
+let configVisible = false;
+function toggleConfig(force) {
+  configVisible = force !== undefined ? force : !configVisible;
+  document.getElementById('config-panel').classList.toggle('visible', configVisible);
+  document.getElementById('chat-wrap').style.display = configVisible ? 'none' : 'flex';
+  const ed = document.getElementById('file-editor');
+  if (ed) ed.style.display = configVisible ? 'none' : (editorPath ? 'flex' : 'none');
+  document.getElementById('config-btn').classList.toggle('active', configVisible);
+}
+
+// ── Event wiring ──────────────────────────────────────────────────
+document.getElementById('config-btn').addEventListener('click', () => toggleConfig());
+document.getElementById('open-dir-btn').addEventListener('click', pickFolder);
+
+document.getElementById('toggle-sidebar-btn').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.toggle('hidden');
+  document.getElementById('toggle-sidebar-btn').classList.toggle('active');
+});
+
+const promptEl = document.getElementById('prompt');
+const sendBtn = document.getElementById('send-btn');
+
+promptEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendBtn.click();
+  }
+});
+
+sendBtn.addEventListener('click', () => {
+  const text = promptEl.value.trim();
+  if (!text || running) return;
+  promptEl.value = '';
+  promptEl.style.height = '';
+  addUserMessage(text);
+  runAgent(text);
+});
+
+promptEl.addEventListener('input', () => {
+  promptEl.style.height = 'auto';
+  promptEl.style.height = Math.min(promptEl.scrollHeight, 120) + 'px';
+});
+
+// ── Init ──────────────────────────────────────────────────────────
+if (!('showDirectoryPicker' in window)) {
+  // Still allow chat (agent can explain limitations), just disable folder button
+  document.getElementById('open-dir-btn').title = 'File System Access API not available in this browser';
+  document.getElementById('open-dir-btn').style.opacity = '.4';
+}
+
+initConfigPanel();
+promptEl.focus();
+</script>
+</body>
+</html>
