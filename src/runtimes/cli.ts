@@ -1,8 +1,9 @@
-import type { Config } from '../config.ts';
 import type { Tool } from '../agent.ts';
-import type { FileSystemPlugin, UIPlugin } from '../plugins/types.ts';
+import type { FileSystemPlugin, UIPlugin, ConfigPlugin, SessionPlugin } from '../plugins/types.ts';
 import { BunFileSystemPlugin } from '../plugins/fs/bun.ts';
 import { TUIPlugin } from '../plugins/ui/tui.ts';
+import { LocalConfigPlugin } from '../plugins/config/local.ts';
+import { LocalSessionPlugin } from '../plugins/session/local.ts';
 import { createReadFileTool } from '../tools/read-file.ts';
 import { createWriteFileTool } from '../tools/write-file.ts';
 import { runShellTool } from '../tools/run-shell.ts';
@@ -16,13 +17,17 @@ import { webDownloadTool } from '../plugins/web-download.ts';
 export interface CliRuntime {
   fs: FileSystemPlugin;
   ui: TUIPlugin;
+  config: ConfigPlugin;
+  session: SessionPlugin;
   tools: Tool[];
-  config: Config;
 }
 
-export function createCliRuntime(config: Config): CliRuntime {
+export function createCliRuntime(): CliRuntime {
+  const config = new LocalConfigPlugin();
+  const loaded = config.load();
   const fs = new BunFileSystemPlugin();
   const ui = new TUIPlugin();
+  const session = new LocalSessionPlugin(loaded.sessionDir);
   const tools: Tool[] = [
     createReadFileTool(fs),
     createWriteFileTool(fs),
@@ -34,5 +39,5 @@ export function createCliRuntime(config: Config): CliRuntime {
     webBrowseHeadlessTool,
     webDownloadTool,
   ];
-  return { fs, ui, tools, config };
+  return { fs, ui, config, session, tools };
 }

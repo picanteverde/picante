@@ -1,12 +1,12 @@
 #!/usr/bin/env bun
 import { createInterface } from 'readline';
-import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
-import { loadConfig, writeConfig, GLOBAL_CONFIG_PATH } from './config.ts';
 import { loadSkills } from './skills.ts';
 import { runAgent } from './agent.ts';
 import { PROVIDERS } from './providers/index.ts';
-import { newSessionId, saveSession, loadSession, listSessions, type Session } from './session.ts';
+import { LocalConfigPlugin } from './plugins/config/local.ts';
 import { createCliRuntime } from './runtimes/cli.ts';
+import type { Session } from './plugins/types.ts';
+import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import { version } from '../package.json';
 
 // --- CLI entry ---
@@ -19,7 +19,7 @@ if (args[0] === '--version' || args[0] === '-v') {
 }
 
 // --help / -h — runs before loading config so it works without any setup
-if (args[0] === '--help' || args[0] === '-h' || args.length === 0 && process.stdin.isTTY === false) {
+if (args[0] === '--help' || args[0] === '-h' || (args.length === 0 && process.stdin.isTTY === false)) {
   console.log(`\x1b[1mpicante\x1b[0m v${version} — terminal AI agent
 
 \x1b[1mUsage:\x1b[0m
@@ -77,16 +77,16 @@ if (args[0] === 'providers') {
 
 // picante config show | provider <name> [key] | model [name]
 if (args[0] === 'config') {
+  const configPlugin = new LocalConfigPlugin();
   const sub = args[1];
 
   if (!sub || sub === 'show') {
-    // Show current config (mask key)
-    const cfg = loadConfig();
+    const cfg = configPlugin.load();
     const masked = cfg.apiKey ? cfg.apiKey.slice(0, 8) + '...' : '(not set)';
     console.log(`LLM_BASE_URL  ${cfg.baseUrl}`);
     console.log(`LLM_MODEL     ${cfg.model}`);
     console.log(`LLM_API_KEY   ${masked}`);
-    console.log(`\nConfig file: ${GLOBAL_CONFIG_PATH}`);
+    console.log(`\nConfig file: ${configPlugin.configPath()}`);
     process.exit(0);
   }
 
@@ -101,7 +101,7 @@ if (args[0] === 'config') {
       updates[p.apiKeyEnv] = key;
       updates['LLM_API_KEY'] = key;
     }
-    writeConfig(updates);
+    configPlugin.write(updates);
     console.log(`Provider set to \x1b[1m${name}\x1b[0m (${p.baseUrl})`);
     if (key) console.log(`API key saved as ${p.apiKeyEnv} and LLM_API_KEY`);
     console.log(`Run \x1b[2mpicante config model\x1b[0m to pick a model.`);
@@ -111,13 +111,13 @@ if (args[0] === 'config') {
   if (sub === 'model') {
     const direct = args[2];
     if (direct) {
-      writeConfig({ LLM_MODEL: direct });
+      configPlugin.write({ LLM_MODEL: direct });
       console.log(`Model set to \x1b[1m${direct}\x1b[0m`);
       process.exit(0);
     }
 
     // Interactive picker: fetch models from current provider
-    const cfg = loadConfig();
+    const cfg = configPlugin.load();
     const providerEntry = Object.entries(PROVIDERS).find(([, p]) => {
       try { return cfg.baseUrl.includes(new URL(p.baseUrl).hostname); } catch { return false; }
     });
@@ -141,7 +141,6 @@ if (args[0] === 'config') {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
     const ask = (q: string): Promise<string> => new Promise(r => rl.question(q, r));
 
-    // Step 1: optional filter
     console.log('');
     printList(allModels);
     console.log('');
@@ -154,7 +153,6 @@ if (args[0] === 'config') {
       console.log('');
     }
 
-    // Step 2: select
     const selectInput = (await ask(`Select model [number or name] (current: \x1b[1m${cfg.model}\x1b[0m): `)).trim();
     rl.close();
 
@@ -165,7 +163,7 @@ if (args[0] === 'config') {
       ? visible[num - 1]!.id
       : selectInput;
 
-    writeConfig({ LLM_MODEL: chosen });
+    configPlugin.write({ LLM_MODEL: chosen });
     console.log(`\nModel set to \x1b[1m${chosen}\x1b[0m`);
     process.exit(0);
   }
@@ -174,8 +172,9 @@ if (args[0] === 'config') {
   process.exit(1);
 }
 
-// Load config and wire up the CLI runtime
-const config = loadConfig();
+// Wire up the CLI runtime (config + session + fs + ui + tools)
+const runtime = createCliRuntime();
+const config = runtime.config.load();
 
 if (!config.apiKey) {
   console.error(`\x1b[1mpicante:\x1b[0m No API key configured.
@@ -194,7 +193,6 @@ Docs: https://picanteverde.github.io/picante/#configuration`);
 }
 
 const skills = loadSkills(config.skillDirs);
-const runtime = createCliRuntime(config);
 
 const SYSTEM_PROMPT = `You are picante, a capable AI agent running in a terminal. You can read and write files, run shell commands, search the web, and browse URLs. You have access to tools — use them whenever they help accomplish the task. Be concise and direct.${skills}`;
 
@@ -210,8 +208,8 @@ function formatApiError(e: unknown): string {
 async function runPrompt(prompt: string, session: Session): Promise<void> {
   session.messages.push({ role: 'user', content: prompt });
   try {
-    const updated = await runAgent(session.messages, {
-      config: runtime.config,
+    const updated = await runAgent(session.messages as ChatCompletionMessageParam[], {
+      config,
       tools: runtime.tools,
       systemPrompt: SYSTEM_PROMPT,
       onStep: (event) => {
@@ -221,13 +219,12 @@ async function runPrompt(prompt: string, session: Session): Promise<void> {
       },
     });
     session.messages = updated;
-    saveSession(config.sessionDir, session);
+    runtime.session.save(session);
   } catch (e) {
     const err = e as { status?: number };
     process.stderr.write('\n' + formatApiError(e) + '\n');
-    // Remove the user message we pushed so the session isn't corrupted
     session.messages.pop();
-    if (!err.status) throw e; // re-throw non-API errors (bugs)
+    if (!err.status) throw e;
   }
 }
 
@@ -245,7 +242,7 @@ const resumeFlag = args.indexOf('--resume');
 const sessionsFlag = args.indexOf('--sessions');
 
 if (sessionsFlag !== -1) {
-  const ids = listSessions(config.sessionDir);
+  const ids = runtime.session.list();
   if (!ids.length) { console.log('No sessions found.'); process.exit(0); }
   ids.forEach(id => console.log(id));
   process.exit(0);
@@ -254,12 +251,12 @@ if (sessionsFlag !== -1) {
 let session: Session;
 if (resumeFlag !== -1) {
   const id = args[resumeFlag + 1];
-  const latestId = listSessions(config.sessionDir)[0];
-  const loaded = id ? loadSession(config.sessionDir, id) : (latestId ? loadSession(config.sessionDir, latestId) : null);
+  const latestId = runtime.session.list()[0];
+  const loaded = id ? runtime.session.load(id) : (latestId ? runtime.session.load(latestId) : null);
   if (!loaded) { console.error('Session not found.'); process.exit(1); }
   session = loaded;
 } else {
-  session = { id: newSessionId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), messages: [] };
+  session = { id: runtime.session.newId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), messages: [] };
 }
 
 const promptArg = args.filter((_, i) =>
