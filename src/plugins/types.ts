@@ -16,3 +16,33 @@ export interface UIPlugin {
   promptUser(question: string): Promise<string>;
   showHeader(sessionId: string, version: string): void;
 }
+
+export interface Config {
+  baseUrl: string;
+  model: string;
+  apiKey: string;
+  defaultHeaders: Record<string, string>;
+  sessionDir: string;
+  skillDirs: string[];
+}
+
+export interface ConfigPlugin {
+  load(): Config;
+  write(updates: Record<string, string>): void;
+  configPath(): string;
+}
+
+export interface Session {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  messages: any[];
+}
+
+export interface SessionPlugin {
+  newId(): string;
+  save(session: Session): void;
+  load(id: string): Session | null;
+  list(): string[];
+}
