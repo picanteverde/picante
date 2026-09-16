@@ -4,13 +4,9 @@ import type { ChatCompletionMessageParam } from 'openai/resources/chat/completio
 import { loadConfig, writeConfig, GLOBAL_CONFIG_PATH } from './config.ts';
 import { loadSkills } from './skills.ts';
 import { runAgent } from './agent.ts';
-import { readFileTool, writeFileTool, runShellTool, runMonitorTool, listModelsTool } from './tools/index.ts';
 import { PROVIDERS } from './providers/index.ts';
-import { webSearchTool } from './plugins/web-search.ts';
-import { webBrowseTool } from './plugins/web-browse.ts';
-import { webBrowseHeadlessTool } from './plugins/web-browse-headless.ts';
-import { webDownloadTool } from './plugins/web-download.ts';
 import { newSessionId, saveSession, loadSession, listSessions, type Session } from './session.ts';
+import { createCliRuntime } from './runtimes/cli.ts';
 import { version } from '../package.json';
 
 // --- CLI entry ---
@@ -178,7 +174,7 @@ if (args[0] === 'config') {
   process.exit(1);
 }
 
-// Load config only when actually running the agent
+// Load config and wire up the CLI runtime
 const config = loadConfig();
 
 if (!config.apiKey) {
@@ -198,32 +194,9 @@ Docs: https://picanteverde.github.io/picante/#configuration`);
 }
 
 const skills = loadSkills(config.skillDirs);
+const runtime = createCliRuntime(config);
 
 const SYSTEM_PROMPT = `You are picante, a capable AI agent running in a terminal. You can read and write files, run shell commands, search the web, and browse URLs. You have access to tools — use them whenever they help accomplish the task. Be concise and direct.${skills}`;
-
-const ALL_TOOLS = [
-  readFileTool,
-  writeFileTool,
-  runShellTool,
-  runMonitorTool,
-  listModelsTool,
-  webSearchTool,
-  webBrowseTool,
-  webBrowseHeadlessTool,
-  webDownloadTool,
-];
-
-function printEvent(event: Parameters<typeof runAgent>[1]['onStep'] extends ((e: infer E) => void) | undefined ? E : never) {
-  if (event.type === 'text') {
-    process.stdout.write('\n' + event.text + '\n');
-  } else if (event.type === 'tool_call') {
-    const argsStr = JSON.stringify(event.args);
-    process.stderr.write(`\x1b[2m⚙ ${event.name}(${argsStr.length > 80 ? argsStr.slice(0, 77) + '…' : argsStr})\x1b[0m\n`);
-  } else if (event.type === 'tool_result') {
-    const preview = (event.result.split('\n')[0] ?? '').slice(0, 60);
-    process.stderr.write(`\x1b[2m  → ${preview}${event.result.length > 60 ? '…' : ''}\x1b[0m\n`);
-  }
-}
 
 function formatApiError(e: unknown): string {
   const err = e as { status?: number; message?: string };
@@ -238,10 +211,14 @@ async function runPrompt(prompt: string, session: Session): Promise<void> {
   session.messages.push({ role: 'user', content: prompt });
   try {
     const updated = await runAgent(session.messages, {
-      config,
-      tools: ALL_TOOLS,
+      config: runtime.config,
+      tools: runtime.tools,
       systemPrompt: SYSTEM_PROMPT,
-      onStep: printEvent,
+      onStep: (event) => {
+        if (event.type === 'text') runtime.ui.onText(event.text);
+        else if (event.type === 'tool_call') runtime.ui.onToolCall(event.name, event.args);
+        else if (event.type === 'tool_result') runtime.ui.onToolResult(event.name, event.result);
+      },
     });
     session.messages = updated;
     saveSession(config.sessionDir, session);
@@ -255,9 +232,8 @@ async function runPrompt(prompt: string, session: Session): Promise<void> {
 }
 
 async function repl(session: Session): Promise<void> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: false });
-  process.stdout.write(`\x1b[1mpicante\x1b[0m v${version}  session ${session.id}  (Ctrl+D to exit)\n\n`);
-  for await (const line of rl) {
+  runtime.ui.showHeader(session.id, version);
+  for await (const line of runtime.ui.lines()) {
     const prompt = line.trim();
     if (!prompt) continue;
     await runPrompt(prompt, session);
