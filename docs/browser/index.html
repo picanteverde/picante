@@ -124,11 +124,11 @@ header{height:48px;display:flex;align-items:center;padding:0 1rem;border-bottom:
         <div class="cfg-field">
           <label class="cfg-label">Provider</label>
           <select class="cfg-select" id="cfg-provider">
-            <option value="opencode">opencode (opencode.ai)</option>
-            <option value="openrouter">openrouter (openrouter.ai)</option>
+            <option value="openrouter">openrouter (openrouter.ai) — recommended</option>
             <option value="openai">openai</option>
             <option value="fal">fal.ai</option>
             <option value="nvidia">NVIDIA NIM</option>
+            <option value="opencode">opencode — CLI only (no browser CORS)</option>
             <option value="custom">custom base URL</option>
           </select>
         </div>
@@ -145,7 +145,7 @@ header{height:48px;display:flex;align-items:center;padding:0 1rem;border-bottom:
         </div>
         <div class="cfg-field">
           <label class="cfg-label">Model</label>
-          <input class="cfg-input" id="cfg-model" type="text" placeholder="glm-5.3-flash">
+          <input class="cfg-input" id="cfg-model" type="text" placeholder="google/gemini-flash-1.5">
         </div>
         <button class="save-btn" id="save-cfg-btn">Save</button>
       </div>
@@ -182,9 +182,9 @@ const PROVIDERS = {
 
 function loadConfig() {
   return {
-    baseUrl: localStorage.getItem('picante:LLM_BASE_URL') || PROVIDERS.opencode,
+    baseUrl: localStorage.getItem('picante:LLM_BASE_URL') || PROVIDERS.openrouter,
     apiKey:  localStorage.getItem('picante:LLM_API_KEY')  || '',
-    model:   localStorage.getItem('picante:LLM_MODEL')    || 'glm-5.3-flash',
+    model:   localStorage.getItem('picante:LLM_MODEL')    || 'google/gemini-flash-1.5',
   };
 }
 function saveConfig(c) {
@@ -409,10 +409,9 @@ async function runAgent(userText) {
     running = false; setSendState(false); return;
   }
 
-  const extraHeaders = {};
   if (cfg.baseUrl.includes('opencode.ai')) {
-    extraHeaders['x-opencode-session'] = crypto.randomUUID();
-    extraHeaders['User-Agent'] = 'picante/1.0';
+    addError('opencode.ai does not support browser requests (no CORS). Use OpenRouter or another CORS-enabled provider instead — opencode works great with the picante CLI.');
+    running = false; setSendState(false); return;
   }
 
   const thinking = addThinking();
@@ -602,10 +601,24 @@ function initConfigPanel() {
   const entry = Object.entries(PROVIDERS).find(([,url]) => url === cfg.baseUrl);
   providerSelect.value = entry ? entry[0] : 'custom';
 
+  const corsWarn = document.createElement('div');
+  corsWarn.id = 'cors-warn';
+  corsWarn.style.cssText = 'display:none;margin-top:.4rem;padding:.4rem .6rem;background:#3a1a0a;border:1px solid #a04020;border-radius:6px;font-size:.78rem;color:#f08060;line-height:1.4';
+  corsWarn.textContent = '⚠ opencode.ai does not support browser requests (no CORS). Use it with the picante CLI instead.';
+  document.getElementById('cfg-provider').after(corsWarn);
+
+  const checkCorsWarn = () => {
+    const isOpencode = providerSelect.value === 'opencode' || document.getElementById('cfg-url').value.includes('opencode.ai');
+    document.getElementById('cors-warn').style.display = isOpencode ? 'block' : 'none';
+  };
+
   providerSelect.addEventListener('change', () => {
     const url = PROVIDERS[providerSelect.value];
     if (url) document.getElementById('cfg-url').value = url;
+    checkCorsWarn();
   });
+  document.getElementById('cfg-url').addEventListener('input', checkCorsWarn);
+  checkCorsWarn();
 
   document.getElementById('show-key-btn').addEventListener('click', () => {
     const inp = document.getElementById('cfg-key');
