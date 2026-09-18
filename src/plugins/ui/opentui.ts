@@ -1,3 +1,4 @@
+import { createInterface } from 'readline';
 import type { CliUIPlugin, Config } from '../types.ts';
 import { PROVIDERS } from '../../providers/index.ts';
 
@@ -37,9 +38,18 @@ export class OpenTUIPlugin implements CliUIPlugin {
     this._model = config.model;
   }
 
+  private _useFallback = false;
+  private _fallbackRl: ReturnType<typeof createInterface> | null = null;
+
   private _ensureInit(): Promise<void> {
-    if (!this._initPromise) this._initPromise = this._setup();
+    if (!this._initPromise) this._initPromise = this._setup().catch(() => this._setupFallback());
     return this._initPromise;
+  }
+
+  private _setupFallback(): void {
+    this._useFallback = true;
+    const header = this._buildStatusLine();
+    process.stdout.write(`\x1b[1m${header}\x1b[0m\n\n`);
   }
 
   private async _setup(): Promise<void> {
@@ -166,26 +176,38 @@ export class OpenTUIPlugin implements CliUIPlugin {
     this._sessionId = sessionId;
     this._version = version;
     void this._ensureInit().then(() => {
+      if (this._useFallback) return;
       if (this._statusEl) this._statusEl.content = this._buildStatusLine();
     });
   }
 
   onText(text: string): void {
+    if (this._useFallback) { process.stdout.write('\n' + text + '\n'); return; }
     this._addLine(text.trim());
   }
 
   onToolCall(name: string, args: Record<string, unknown>): void {
     const s = JSON.stringify(args);
-    this._addLine(`  ⚙ ${name}(${s.length > 60 ? s.slice(0, 57) + '...' : s})`);
+    const short = s.length > 60 ? s.slice(0, 57) + '...' : s;
+    if (this._useFallback) { process.stderr.write(`\x1b[2m⚙ ${name}(${short})\x1b[0m\n`); return; }
+    this._addLine(`  ⚙ ${name}(${short})`);
   }
 
   onToolResult(_name: string, result: string): void {
     const preview = (result.split('\n')[0] ?? '').slice(0, 60);
-    this._addLine(`  → ${preview}${result.length > 60 ? '...' : ''}`);
+    const suffix = result.length > 60 ? '...' : '';
+    if (this._useFallback) { process.stderr.write(`\x1b[2m  → ${preview}${suffix}\x1b[0m\n`); return; }
+    this._addLine(`  → ${preview}${suffix}`);
   }
 
   async promptUser(question: string): Promise<string> {
     await this._ensureInit();
+    if (this._useFallback) {
+      if (!this._fallbackRl) {
+        this._fallbackRl = createInterface({ input: process.stdin, output: process.stdout, terminal: false });
+      }
+      return new Promise(r => this._fallbackRl!.question(question, r));
+    }
     this._addLine(`? ${question}`);
     return new Promise(resolve => {
       this._lineResolvers.push(s => resolve(s ?? ''));
@@ -196,6 +218,11 @@ export class OpenTUIPlugin implements CliUIPlugin {
 
   async *lines(): AsyncGenerator<string> {
     await this._ensureInit();
+    if (this._useFallback) {
+      const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: false });
+      for await (const line of rl) yield line;
+      return;
+    }
     while (true) {
       const line = await new Promise<string | null>(resolve => {
         this._lineResolvers.push(resolve);
