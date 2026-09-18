@@ -424,7 +424,6 @@ async function runAgent(userText) {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${cfg.apiKey}`,
-          ...extraHeaders,
         },
         body: JSON.stringify({
           model: cfg.model,
