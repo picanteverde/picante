@@ -24,6 +24,10 @@
   },
   "dependencies": {
     "@opentui/core": "^0.5.11",
+    "@opentui/core-darwin-arm64": "^0.5.11",
+    "@opentui/core-darwin-x64": "^0.5.11",
+    "@opentui/core-linux-arm64": "^0.5.11",
+    "@opentui/core-linux-arm64-musl": "^0.5.11",
     "cheerio": "^1.2.0",
     "openai": "^7.15.0"
   }
