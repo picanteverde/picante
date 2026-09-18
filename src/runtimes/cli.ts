@@ -1,6 +1,7 @@
 import type { Tool } from '../agent.ts';
-import type { FileSystemPlugin, UIPlugin, ConfigPlugin, SessionPlugin } from '../plugins/types.ts';
+import type { FileSystemPlugin, CliUIPlugin, ConfigPlugin, SessionPlugin } from '../plugins/types.ts';
 import { BunFileSystemPlugin } from '../plugins/fs/bun.ts';
+import { OpenTUIPlugin } from '../plugins/ui/opentui.ts';
 import { TUIPlugin } from '../plugins/ui/tui.ts';
 import { LocalConfigPlugin } from '../plugins/config/local.ts';
 import { LocalSessionPlugin } from '../plugins/session/local.ts';
@@ -16,17 +17,17 @@ import { webDownloadTool } from '../plugins/web-download.ts';
 
 export interface CliRuntime {
   fs: FileSystemPlugin;
-  ui: TUIPlugin;
+  ui: CliUIPlugin;
   config: ConfigPlugin;
   session: SessionPlugin;
   tools: Tool[];
 }
 
-export function createCliRuntime(): CliRuntime {
+export function createCliRuntime(opts?: { noTui?: boolean }): CliRuntime {
   const config = new LocalConfigPlugin();
   const loaded = config.load();
   const fs = new BunFileSystemPlugin();
-  const ui = new TUIPlugin();
+  const ui: CliUIPlugin = opts?.noTui ? new TUIPlugin() : new OpenTUIPlugin(loaded);
   const session = new LocalSessionPlugin(loaded.sessionDir);
   const tools: Tool[] = [
     createReadFileTool(fs),

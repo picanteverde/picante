@@ -31,6 +31,7 @@ if (args[0] === '--help' || args[0] === '-h' || (args.length === 0 && process.st
   picante config show                  Show current configuration
   picante config provider <n> [key]    Set active provider (+ API key)
   picante config model [name]          Interactive model picker or set directly
+  picante --no-tui                     Use plain terminal output (no OpenTUI)
   picante --version                    Show version
   picante --help                       Show this help
 
@@ -173,7 +174,8 @@ if (args[0] === 'config') {
 }
 
 // Wire up the CLI runtime (config + session + fs + ui + tools)
-const runtime = createCliRuntime();
+const noTui = args.includes('--no-tui');
+const runtime = createCliRuntime({ noTui });
 const config = runtime.config.load();
 
 if (!config.apiKey) {

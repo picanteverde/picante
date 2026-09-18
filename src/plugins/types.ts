@@ -17,6 +17,11 @@ export interface UIPlugin {
   showHeader(sessionId: string, version: string): void;
 }
 
+// Extended interface for CLI UIs that drive the input loop
+export interface CliUIPlugin extends UIPlugin {
+  lines(): AsyncIterable<string>;
+}
+
 export interface Config {
   baseUrl: string;
   model: string;

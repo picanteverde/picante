@@ -1,7 +1,7 @@
 import { createInterface } from 'readline';
-import type { UIPlugin } from '../types.ts';
+import type { CliUIPlugin } from '../types.ts';
 
-export class TUIPlugin implements UIPlugin {
+export class TUIPlugin implements CliUIPlugin {
   private rl: ReturnType<typeof createInterface> | null = null;
 
   onText(text: string): void {
