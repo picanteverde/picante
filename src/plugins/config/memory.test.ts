@@ -27,7 +27,7 @@ describe('MemoryConfigPlugin', () => {
     plugin.write({ LLM_MODEL: 'new-model' });
     expect(plugin.load().model).toBe('new-model');
     expect(written).toHaveLength(1);
-    expect(written[0].LLM_MODEL).toBe('new-model');
+    expect(written[0]?.LLM_MODEL).toBe('new-model');
   });
 
   it('parses LLM_DEFAULT_HEADERS as JSON', () => {

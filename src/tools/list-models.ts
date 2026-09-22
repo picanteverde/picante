@@ -6,13 +6,13 @@ export const listModelsTool: Tool = {
     type: 'function',
     function: {
       name: 'list_models',
-      description: 'List available models from a supported LLM provider. Supported providers: openrouter, opencode, fal, nvidia, amd.',
+      description: `List available models from a supported LLM provider. Supported providers: ${Object.keys(PROVIDERS).join(', ')}.`,
       parameters: {
         type: 'object',
         properties: {
           provider: {
             type: 'string',
-            enum: ['openrouter', 'opencode', 'fal', 'nvidia', 'amd'],
+            enum: Object.keys(PROVIDERS),
             description: 'Provider to query.',
           },
           api_key: {

@@ -41,4 +41,20 @@ describe('run_monitor tool', () => {
     });
     expect(result).toBe('(no output matched)');
   });
+
+  it('returns after timeout_ms for a long-running command', async () => {
+    const start = Date.now();
+    const result = await runMonitorTool.execute({ command: 'echo first; sleep 10', timeout_ms: 300 });
+    expect(Date.now() - start).toBeLessThan(3000);
+    expect(result).toBe('first');
+  });
+
+  it('captures stderr lines too', async () => {
+    const result = await runMonitorTool.execute({ command: 'echo err >&2', timeout_ms: 3000 });
+    expect(result).toBe('err');
+  });
+
+  it('rejects on an invalid filter regex', async () => {
+    await expect(runMonitorTool.execute({ command: 'echo x', filter: '(', timeout_ms: 1000 })).rejects.toThrow();
+  });
 });

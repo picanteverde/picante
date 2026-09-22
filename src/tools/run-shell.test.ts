@@ -17,7 +17,7 @@ describe('run_shell tool', () => {
     expect(result).toContain('42');
   });
 
-  it('returns (no output) when command produces nothing', async () => {
+  it('still reports the exit code when the command prints nothing', async () => {
     const result = await runShellTool.execute({ command: 'true' });
     expect(result).toContain('exit code: 0');
   });
@@ -25,5 +25,18 @@ describe('run_shell tool', () => {
   it('handles non-zero exit without throwing', async () => {
     const result = await runShellTool.execute({ command: 'exit 1' });
     expect(result).toContain('exit code: 1');
+  });
+
+  it('kills the command when timeout_ms elapses', async () => {
+    const start = Date.now();
+    const result = await runShellTool.execute({ command: 'sleep 5', timeout_ms: 200 });
+    expect(Date.now() - start).toBeLessThan(3000);
+    expect(result).toContain('exit code: null');
+  });
+
+  it('labels stdout and stderr sections separately', async () => {
+    const result = await runShellTool.execute({ command: 'echo out; echo err >&2' });
+    expect(result).toMatch(/stdout:\nout/);
+    expect(result).toMatch(/stderr:\nerr/);
   });
 });

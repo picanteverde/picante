@@ -40,7 +40,7 @@ if (args[0] === '--help' || args[0] === '-h' || (args.length === 0 && process.st
   LLM_MODEL    = "google/gemini-flash-1.5"
   LLM_API_KEY  = "sk-..."
 
-\x1b[1mProviders:\x1b[0m  openrouter · opencode · fal · nvidia · amd
+\x1b[1mProviders:\x1b[0m  ${Object.keys(PROVIDERS).join(' · ')}
 \x1b[1mDocs:\x1b[0m       https://picanteverde.github.io/picante`);
   process.exit(0);
 }

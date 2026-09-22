@@ -49,4 +49,19 @@ describe('read_file tool', () => {
     expect(result).toContain('2\tline2');
     expect(result).toContain('3\tline3');
   });
+
+  it('returns an empty string when offset is past the end of the file', async () => {
+    expect(await tool.execute({ path: '/a.txt', offset: 99 })).toBe('');
+  });
+
+  it('numbers a single empty file as line 1', async () => {
+    const t = createReadFileTool(mockFs({ '/empty.txt': '' }));
+    expect(await t.execute({ path: '/empty.txt' })).toBe('1\t');
+  });
+
+  it('exposes the expected tool definition', () => {
+    const fn = (tool.definition as any).function;
+    expect(fn.name).toBe('read_file');
+    expect(fn.parameters.required).toEqual(['path']);
+  });
 });

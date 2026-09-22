@@ -19,4 +19,20 @@ describe('write_file tool', () => {
     expect(result).toContain('11');
     expect(result).toContain('/out.txt');
   });
+
+  it('reports UTF-8 byte length, not character count', async () => {
+    const fs: FileSystemPlugin = {
+      async read() { return ''; }, async write() {}, async exists() { return false; },
+      async list() { return []; }, async mkdir() {}, async delete() {},
+    };
+    const result = await createWriteFileTool(fs).execute({ path: '/u', content: '🌶' });
+    expect(result).toBe('Written 4 bytes to /u');
+  });
+
+  it('exposes the expected tool definition', () => {
+    const fs = {} as FileSystemPlugin;
+    const fn = (createWriteFileTool(fs).definition as any).function;
+    expect(fn.name).toBe('write_file');
+    expect(fn.parameters.required).toEqual(['path', 'content']);
+  });
 });

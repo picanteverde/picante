@@ -59,6 +59,7 @@ export class LocalConfigPlugin implements ConfigPlugin {
     mkdirSync(dirname(this.path), { recursive: true });
     let lines: string[] = [];
     try { lines = readFileSync(this.path, 'utf8').split('\n'); } catch {}
+    while (lines.length && lines[lines.length - 1] === '') lines.pop();
 
     const written = new Set<string>();
     const newLines = lines.map(line => {
