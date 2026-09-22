@@ -40,13 +40,22 @@ export async function runAgent(
   const toolMap = new Map(opts.tools.map(t => [(t.definition as any).function.name as string, t]));
   const history = [...messages];
 
+  const hasTools = opts.tools.length > 0;
+
   for (let step = 0; step < 50; step++) {
     const res = await client.chat.completions.create({
       model: opts.config.model,
       messages: [{ role: 'system', content: opts.systemPrompt }, ...history],
-      tools: opts.tools.map(t => t.definition),
-      tool_choice: 'auto',
+      ...(hasTools ? { tools: opts.tools.map(t => t.definition), tool_choice: 'auto' } : {}),
     });
+
+    // Some providers return a non-standard error body with status 200 instead of throwing.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = res as any;
+    if (!raw.choices) {
+      const detail = raw.error?.message ?? raw.message ?? JSON.stringify(raw);
+      throw new Error(`Provider returned no choices — ${detail}`);
+    }
 
     const choice = res.choices[0];
     if (!choice) break;
