@@ -2,7 +2,8 @@
 import { createInterface } from 'readline';
 import { loadSkills } from './skills.ts';
 import { runAgent } from './agent.ts';
-import { PROVIDERS } from './providers/index.ts';
+import { PROVIDERS, detectProvider } from './providers/index.ts';
+import { handleSlashCommand } from './commands.ts';
 import { LocalConfigPlugin } from './plugins/config/local.ts';
 import { createCliRuntime } from './runtimes/cli.ts';
 import type { Session } from './plugins/types.ts';
@@ -32,6 +33,11 @@ if (args[0] === '--help' || args[0] === '-h' || (args.length === 0 && process.st
   picante config provider <n> [key]    Set active provider (+ API key)
   picante config model [name]          Interactive model picker or set directly
   picante --no-tui                     Use plain terminal output (no OpenTUI)
+
+\x1b[1mInside the REPL:\x1b[0m
+  /model [name]     Pick a model (or set one)      Ctrl+O
+  /provider [name]  Switch provider                 Ctrl+P
+  /config · /clear · /help · /quit
   picante --version                    Show version
   picante --help                       Show this help
 
@@ -173,8 +179,19 @@ if (args[0] === 'config') {
   process.exit(1);
 }
 
+// Flags and the optional one-shot prompt are resolved before the runtime is
+// created so a one-shot run can use the plain UI instead of the full TUI.
+const resumeFlag = args.indexOf('--resume');
+const sessionsFlag = args.indexOf('--sessions');
+const promptArg = args.filter((_, i) =>
+  i !== resumeFlag &&
+  (resumeFlag === -1 || i !== resumeFlag + 1) &&
+  args[i] !== '--sessions' &&
+  args[i] !== '--no-tui'
+).join(' ').trim();
+
 // Wire up the CLI runtime (config + session + fs + ui + tools)
-const noTui = args.includes('--no-tui');
+const noTui = args.includes('--no-tui') || Boolean(promptArg);
 const runtime = createCliRuntime({ noTui });
 const config = runtime.config.load();
 
@@ -224,7 +241,8 @@ async function runPrompt(prompt: string, session: Session): Promise<void> {
     runtime.session.save(session);
   } catch (e) {
     const err = e as { status?: number };
-    process.stderr.write('\n' + formatApiError(e) + '\n');
+    if (runtime.ui.notify) runtime.ui.notify(formatApiError(e));
+    else process.stderr.write('\n' + formatApiError(e) + '\n');
     session.messages.pop();
     if (!err.status) throw e;
   }
@@ -232,16 +250,24 @@ async function runPrompt(prompt: string, session: Session): Promise<void> {
 
 async function repl(session: Session): Promise<void> {
   runtime.ui.showHeader(session.id, version);
+  runtime.ui.setStatus?.({ provider: detectProvider(config.baseUrl), model: config.model, sessionId: session.id });
+  const commandCtx = {
+    config,
+    configPlugin: runtime.config,
+    ui: runtime.ui,
+    session,
+    sessionPlugin: runtime.session,
+    exit: () => { runtime.ui.dispose?.(); process.exit(0); },
+  };
   for await (const line of runtime.ui.lines()) {
     const prompt = line.trim();
     if (!prompt) continue;
+    if (await handleSlashCommand(prompt, commandCtx)) continue;
     await runPrompt(prompt, session);
-    process.stdout.write('\n');
+    if (noTui) process.stdout.write('\n');
   }
+  runtime.ui.dispose?.();
 }
-
-const resumeFlag = args.indexOf('--resume');
-const sessionsFlag = args.indexOf('--sessions');
 
 if (sessionsFlag !== -1) {
   const ids = runtime.session.list();
@@ -260,12 +286,6 @@ if (resumeFlag !== -1) {
 } else {
   session = { id: runtime.session.newId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), messages: [] };
 }
-
-const promptArg = args.filter((_, i) =>
-  i !== resumeFlag &&
-  (resumeFlag === -1 || i !== resumeFlag + 1) &&
-  args[i] !== '--sessions'
-).join(' ').trim();
 
 if (promptArg) {
   await runPrompt(promptArg, session).catch(e => {

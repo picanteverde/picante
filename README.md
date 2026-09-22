@@ -47,7 +47,27 @@ picante --resume 2026-09-14-083241
 
 # List sessions
 picante --sessions
+
+# Plain readline output instead of the full-screen TUI
+picante --no-tui
 ```
+
+### Inside the REPL
+
+The interactive session is a full-screen TUI: a `🌶` prompt, a scrolling transcript,
+and a status line that always shows the active provider and model.
+
+| Command | Shortcut | What it does |
+|---------|----------|--------------|
+| `/model [name]` | `Ctrl+O` | Pick a model from the current provider (type to filter), or set one directly |
+| `/provider [name]` | `Ctrl+P` | Switch provider; asks for an API key the first time, then remembers it |
+| `/config` | | Show the active provider, model and config file |
+| `/clear` | | Start a fresh session |
+| `/help` | | List commands |
+| `/quit` | | Exit (`Ctrl+C` also works) |
+
+`↑`/`↓` step through prompt history and `Esc` clears the input. Provider and model
+changes are saved to your config file, so they persist across sessions.
 
 ## Providers
 
@@ -58,7 +78,7 @@ OPENROUTER_API_KEY=sk-... picante providers openrouter --filter free
 picante providers list
 ```
 
-Built-in providers: `openrouter`, `opencode`, `fal`, `nvidia`, `amd`.
+Built-in providers: `openrouter`, `infron`, `opencode`, `fal`, `nvidia`, `amd`.
 
 ## Built-in tools
 
