@@ -125,6 +125,7 @@ header{height:48px;display:flex;align-items:center;padding:0 1rem;border-bottom:
           <label class="cfg-label">Provider</label>
           <select class="cfg-select" id="cfg-provider">
             <option value="openrouter">openrouter (openrouter.ai) — recommended</option>
+            <option value="infron">infron.ai</option>
             <option value="openai">openai</option>
             <option value="fal">fal.ai</option>
             <option value="nvidia">NVIDIA NIM</option>
@@ -175,6 +176,7 @@ header{height:48px;display:flex;align-items:center;padding:0 1rem;border-bottom:
 const PROVIDERS = {
   opencode:    'https://opencode.ai/zen/go/v1',
   openrouter:  'https://openrouter.ai/api/v1',
+  infron:      'https://llm.onerouter.pro/v1',
   openai:      'https://api.openai.com/v1',
   fal:         'https://fal.run/fal-ai',
   nvidia:      'https://integrate.api.nvidia.com/v1',
