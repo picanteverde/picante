@@ -22,3 +22,18 @@ export const PROVIDERS: Record<string, Provider> = {
   amd: amdProvider,
   infron: infronProvider,
 };
+
+// Name of the built-in provider whose host matches baseUrl, or a best-effort
+// label derived from the hostname (e.g. "api" for https://api.example.com/v1).
+export function detectProvider(baseUrl: string): string {
+  for (const [name, p] of Object.entries(PROVIDERS)) {
+    try {
+      if (baseUrl.includes(new URL(p.baseUrl).hostname)) return name;
+    } catch { /* ignore */ }
+  }
+  try {
+    return new URL(baseUrl).hostname.replace(/^www\./, '').split('.')[0] ?? baseUrl;
+  } catch {
+    return baseUrl;
+  }
+}

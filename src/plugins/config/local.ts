@@ -30,6 +30,11 @@ export class LocalConfigPlugin implements ConfigPlugin {
     return this.path;
   }
 
+  get(key: string): string | undefined {
+    const merged = { ...readToml(this.path), ...readToml(join(process.cwd(), '.picante.toml')) };
+    return process.env[key] ?? merged[key];
+  }
+
   load(): Config {
     const toml: Record<string, string> = {
       ...readToml(this.path),

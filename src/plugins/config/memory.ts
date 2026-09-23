@@ -28,6 +28,10 @@ export class MemoryConfigPlugin implements ConfigPlugin {
     return '(memory)';
   }
 
+  get(key: string): string | undefined {
+    return this.rawToml[key];
+  }
+
   load(): Config {
     return { ...this.data };
   }
